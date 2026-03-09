@@ -25,15 +25,14 @@ describe("app", () => {
   });
 
   it("renders the operations dashboard shell", async () => {
+    window.history.pushState({}, "", "/");
     render(<App />);
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /inventory overview/i })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("heading", { name: "Catalog" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Inventory" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Reservations" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /open catalog setup/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /refresh data/i })).toBeInTheDocument();
   });
 });
