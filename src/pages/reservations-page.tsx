@@ -5,12 +5,39 @@ import type { DashboardSnapshot, Reservation, Sku } from "@/types";
 import { api } from "@/lib/api";
 import type { ActionRunner } from "@/components/operations-app";
 import { FixedChoiceField } from "@/components/fixed-choice-field";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -18,7 +45,7 @@ import {
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
 import {
   Table,
@@ -26,13 +53,13 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
 } from "@/components/ui/table";
 
 export function ReservationsPage({
   snapshot,
   loading,
-  runAction
+  runAction,
 }: {
   snapshot: DashboardSnapshot;
   loading: boolean;
@@ -41,7 +68,8 @@ export function ReservationsPage({
   const [reservationSkuId, setReservationSkuId] = useState("");
   const [reservationQuantity, setReservationQuantity] = useState(1);
   const [reservationActor, setReservationActor] = useState("operations");
-  const [reservationCustomerId, setReservationCustomerId] = useState("customer-001");
+  const [reservationCustomerId, setReservationCustomerId] =
+    useState("customer-001");
 
   useEffect(() => {
     setReservationSkuId((current) => current || snapshot.skus[0]?.id || "");
@@ -52,7 +80,9 @@ export function ReservationsPage({
       <Card className="shadow-none">
         <CardHeader>
           <CardTitle>Create reservation</CardTitle>
-          <CardDescription>Create a temporary hold before final allocation.</CardDescription>
+          <CardDescription>
+            Create a temporary hold before final allocation.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {snapshot.skus.length === 0 ? (
@@ -61,16 +91,18 @@ export function ReservationsPage({
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                const sku = snapshot.skus.find((item) => item.id === reservationSkuId);
+                const sku = snapshot.skus.find(
+                  (item) => item.id === reservationSkuId,
+                );
                 void runAction(
                   () =>
                     api.createReservation({
                       skuId: reservationSkuId,
                       region: sku?.region ?? "US",
                       quantity: reservationQuantity,
-                      actor: reservationActor
+                      actor: reservationActor,
                     }),
-                  "Reservation created."
+                  "Reservation created.",
                 );
               }}
             >
@@ -78,9 +110,15 @@ export function ReservationsPage({
                 <Field className="lg:col-span-2">
                   <FieldLabel>Sku</FieldLabel>
                   {snapshot.skus.length === 1 ? (
-                    <FixedChoiceField value={formatSkuLabel(snapshot.skus[0]!)} hint="Only sku available right now" />
+                    <FixedChoiceField
+                      value={formatSkuLabel(snapshot.skus[0]!)}
+                      hint="Only sku available right now"
+                    />
                   ) : (
-                    <Select value={reservationSkuId} onValueChange={setReservationSkuId}>
+                    <Select
+                      value={reservationSkuId}
+                      onValueChange={setReservationSkuId}
+                    >
                       <SelectTrigger aria-label="Select sku">
                         <SelectValue placeholder="Select a sku" />
                       </SelectTrigger>
@@ -102,20 +140,43 @@ export function ReservationsPage({
                     type="number"
                     min={1}
                     value={reservationQuantity}
-                    onChange={(event) => setReservationQuantity(Number(event.target.value))}
+                    onChange={(event) =>
+                      setReservationQuantity(Number(event.target.value))
+                    }
                   />
                 </Field>
                 <Field>
                   <FieldLabel>Operator id</FieldLabel>
-                  <Input value={reservationActor} onChange={(event) => setReservationActor(event.target.value)} />
+                  <Input
+                    value={reservationActor}
+                    onChange={(event) =>
+                      setReservationActor(event.target.value)
+                    }
+                  />
                 </Field>
                 <Field>
                   <FieldLabel>Customer id</FieldLabel>
-                  <Input value={reservationCustomerId} onChange={(event) => setReservationCustomerId(event.target.value)} />
-                  <FieldDescription>Used when the hold is confirmed into an entitlement.</FieldDescription>
+                  <Input
+                    value={reservationCustomerId}
+                    onChange={(event) =>
+                      setReservationCustomerId(event.target.value)
+                    }
+                  />
+                  <FieldDescription>
+                    Used when the hold is confirmed into an entitlement.
+                  </FieldDescription>
                 </Field>
                 <div className="flex flex-wrap justify-end gap-3 lg:col-span-2">
-                  <Button type="button" variant="outline" onClick={() => void runAction(() => api.processExpiredReservations(), "Expiry sweep completed.")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      void runAction(
+                        () => api.processExpiredReservations(),
+                        "Expiry sweep completed.",
+                      )
+                    }
+                  >
                     <Clock3Icon data-icon="inline-start" />
                     Run expiry sweep
                   </Button>
@@ -133,7 +194,9 @@ export function ReservationsPage({
       <Card className="shadow-none">
         <CardHeader>
           <CardTitle>Reservation queue</CardTitle>
-          <CardDescription>Confirm a hold when the deal closes or cancel it to release stock.</CardDescription>
+          <CardDescription>
+            Confirm a hold when the deal closes or cancel it to release stock.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {snapshot.reservations.length === 0 ? (
@@ -155,29 +218,43 @@ export function ReservationsPage({
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">{reservation.skuId}</span>
-                        <span className="text-xs text-muted-foreground">{reservation.region}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {reservation.region}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={reservation.status === "RESERVED" ? "outline" : reservation.status === "CONFIRMED" ? "secondary" : "destructive"}>
+                      <Badge
+                        variant={
+                          reservation.status === "RESERVED"
+                            ? "outline"
+                            : reservation.status === "CONFIRMED"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                      >
                         {reservation.status.toLowerCase()}
                       </Badge>
                     </TableCell>
                     <TableCell>{reservation.quantity}</TableCell>
-                    <TableCell>{new Date(reservation.expiresAt).toLocaleString()}</TableCell>
+                    <TableCell>
+                      {new Date(reservation.expiresAt).toLocaleString()}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
-                          disabled={reservation.status !== "RESERVED" || loading}
+                          disabled={
+                            reservation.status !== "RESERVED" || loading
+                          }
                           onClick={() =>
                             void runAction(
                               () =>
                                 api.confirmReservation(reservation.id, {
                                   customerId: reservationCustomerId,
-                                  actor: reservationActor
+                                  actor: reservationActor,
                                 }),
-                              "Reservation confirmed."
+                              "Reservation confirmed.",
                             )
                           }
                         >
@@ -207,7 +284,7 @@ function CancelReservationButton({
   reservation,
   loading,
   runAction,
-  actor
+  actor,
 }: {
   reservation: Reservation;
   loading: boolean;
@@ -217,7 +294,11 @@ function CancelReservationButton({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="destructive" disabled={reservation.status !== "RESERVED" || loading}>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={reservation.status !== "RESERVED" || loading}
+        >
           <OctagonXIcon data-icon="inline-start" />
           Cancel
         </Button>
@@ -226,14 +307,18 @@ function CancelReservationButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Cancel this reservation?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will release the reserved quantity back into available inventory.
+            This will release the reserved quantity back into available
+            inventory.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep reservation</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
-              void runAction(() => api.cancelReservation(reservation.id, { actor }), "Reservation cancelled.");
+              void runAction(
+                () => api.cancelReservation(reservation.id, { actor }),
+                "Reservation cancelled.",
+              );
             }}
           >
             Release reserved stock
@@ -245,7 +330,7 @@ function CancelReservationButton({
 }
 
 function formatSkuLabel(sku: Sku) {
-  return `${sku.code} · ${sku.region} · ${sku.billingPeriod}`;
+  return [sku.code, sku.region, sku.billingPeriod].filter(Boolean).join(" · ");
 }
 
 function InlineReservationEmpty({ text }: { text: string }) {

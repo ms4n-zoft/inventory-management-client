@@ -8,11 +8,17 @@ import {
   ClipboardListIcon,
   PackagePlusIcon,
   RefreshCwIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
-import type { AuditLog, DashboardSnapshot, InventoryPool, Reservation, Sku } from "@/types";
+import type {
+  AuditLog,
+  DashboardSnapshot,
+  InventoryPool,
+  Reservation,
+  Sku,
+} from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,7 +27,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from "@/components/ui/card";
 import {
   Sidebar,
@@ -38,10 +44,16 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarSeparator,
-  SidebarTrigger
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { OverviewPage } from "@/pages/overview-page";
 import { CatalogPage } from "@/pages/catalog-page";
 import { InventoryPage } from "@/pages/inventory-page";
@@ -49,24 +61,51 @@ import { ReservationsPage } from "@/pages/reservations-page";
 import { AuditPage } from "@/pages/audit-page";
 
 const emptySnapshot: DashboardSnapshot = {
-  vendors: [],
   products: [],
   plans: [],
   skus: [],
   inventoryPools: [],
   reservations: [],
   entitlements: [],
-  auditLogs: []
+  auditLogs: [],
 };
 
-export type ActionRunner = (work: () => Promise<unknown>, message: string) => Promise<boolean>;
+export type ActionRunner = (
+  work: () => Promise<unknown>,
+  message: string,
+) => Promise<boolean>;
 
 const navigationItems = [
-  { href: "/", label: "Overview", icon: BoxesIcon, subtitle: "status and queues" },
-  { href: "/catalog", label: "Catalog", icon: PackagePlusIcon, subtitle: "vendors and skus" },
-  { href: "/inventory", label: "Inventory", icon: ArchiveIcon, subtitle: "stock and adjustments" },
-  { href: "/reservations", label: "Reservations", icon: ClipboardListIcon, subtitle: "holds and confirmation" },
-  { href: "/audit", label: "Audit", icon: ShieldCheckIcon, subtitle: "change history" }
+  {
+    href: "/",
+    label: "Overview",
+    icon: BoxesIcon,
+    subtitle: "status and queues",
+  },
+  {
+    href: "/catalog",
+    label: "Catalog",
+    icon: PackagePlusIcon,
+    subtitle: "products and skus",
+  },
+  {
+    href: "/inventory",
+    label: "Inventory",
+    icon: ArchiveIcon,
+    subtitle: "stock and adjustments",
+  },
+  {
+    href: "/reservations",
+    label: "Reservations",
+    icon: ClipboardListIcon,
+    subtitle: "holds and confirmation",
+  },
+  {
+    href: "/audit",
+    label: "Audit",
+    icon: ShieldCheckIcon,
+    subtitle: "change history",
+  },
 ] as const;
 
 type RouteMeta = {
@@ -79,50 +118,60 @@ const routeMeta: Record<string, RouteMeta> = {
   "/": {
     label: "overview",
     title: "Inventory overview",
-    description: "A quick operational read on stock, reservations, and recent activity."
+    description:
+      "A quick operational read on stock, reservations, and recent activity.",
   },
   "/catalog": {
     label: "catalog",
     title: "Catalog setup",
-    description: "Create vendors, products, plans, and skus with explicit step-by-step actions."
+    description:
+      "Search for products, add them to the catalog with plan and SKU in one step.",
   },
   "/inventory": {
     label: "inventory",
     title: "Inventory control",
-    description: "Create pools, apply adjustments, and review available inventory."
+    description:
+      "Create pools, apply adjustments, and review available inventory.",
   },
   "/reservations": {
     label: "reservations",
     title: "Reservation desk",
-    description: "Create holds, confirm fulfilled requests, and release stock safely."
+    description:
+      "Create holds, confirm fulfilled requests, and release stock safely.",
   },
   "/audit": {
     label: "audit",
     title: "Audit history",
-    description: "Review the latest inventory-affecting events and actors."
-  }
+    description: "Review the latest inventory-affecting events and actors.",
+  },
 };
 
 function getRouteMeta(pathname: string): RouteMeta {
-  return routeMeta[pathname] ?? {
-    label: "overview",
-    title: "Inventory overview",
-    description: "A quick operational read on stock, reservations, and recent activity."
-  };
+  return (
+    routeMeta[pathname] ?? {
+      label: "overview",
+      title: "Inventory overview",
+      description:
+        "A quick operational read on stock, reservations, and recent activity.",
+    }
+  );
 }
 
 export function OperationsApp() {
   const location = useLocation();
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<{ tone: "neutral" | "success" | "error"; text: string }>({
+  const [status, setStatus] = useState<{
+    tone: "neutral" | "success" | "error";
+    text: string;
+  }>({
     tone: "neutral",
-    text: "Loading inventory data."
+    text: "Loading inventory data.",
   });
 
   const activeReservations = useMemo(
     () => snapshot.reservations.filter((item) => item.status === "RESERVED"),
-    [snapshot.reservations]
+    [snapshot.reservations],
   );
 
   const refresh = async (message = "Inventory data is up to date.") => {
@@ -137,7 +186,10 @@ export function OperationsApp() {
     } catch (error) {
       setStatus({
         tone: "error",
-        text: error instanceof Error ? error.message : "Unable to load inventory data."
+        text:
+          error instanceof Error
+            ? error.message
+            : "Unable to load inventory data.",
       });
     } finally {
       setLoading(false);
@@ -158,7 +210,7 @@ export function OperationsApp() {
     } catch (error) {
       setStatus({
         tone: "error",
-        text: error instanceof Error ? error.message : "Request failed."
+        text: error instanceof Error ? error.message : "Request failed.",
       });
       setLoading(false);
       return false;
@@ -169,15 +221,23 @@ export function OperationsApp() {
 
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon" variant="sidebar" className="border-r shadow-none">
+      <Sidebar
+        collapsible="icon"
+        variant="sidebar"
+        className="border-r shadow-none"
+      >
         <SidebarHeader className="gap-3 border-b px-4 py-5">
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-lg border bg-background">
               <BoxesIcon />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-2xl font-semibold tracking-tight">Inventory</p>
-              <p className="truncate text-sm text-muted-foreground">Operations workspace</p>
+              <p className="truncate text-2xl font-semibold tracking-tight">
+                Inventory
+              </p>
+              <p className="truncate text-sm text-muted-foreground">
+                Operations workspace
+              </p>
             </div>
           </div>
         </SidebarHeader>
@@ -201,8 +261,12 @@ export function OperationsApp() {
                       <NavLink to={item.href}>
                         <item.icon className="mt-0.5 size-4.5" />
                         <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="text-base font-medium leading-none">{item.label}</span>
-                          <span className="truncate pt-1 text-sm text-muted-foreground">{item.subtitle}</span>
+                          <span className="text-base font-medium leading-none">
+                            {item.label}
+                          </span>
+                          <span className="truncate pt-1 text-sm text-muted-foreground">
+                            {item.subtitle}
+                          </span>
                         </div>
                       </NavLink>
                     </SidebarMenuButton>
@@ -217,10 +281,18 @@ export function OperationsApp() {
           <Card size="sm" className="shadow-none">
             <CardHeader className="border-b">
               <CardTitle className="text-sm">Status</CardTitle>
-              <CardDescription>{loading ? "Syncing data" : status.text}</CardDescription>
+              <CardDescription>
+                {loading ? "Syncing data" : status.text}
+              </CardDescription>
               <CardAction>
-                <Badge variant={status.tone === "error" ? "destructive" : "outline"}>
-                  {loading ? "Syncing" : status.tone === "error" ? "Issue" : "Live"}
+                <Badge
+                  variant={status.tone === "error" ? "destructive" : "outline"}
+                >
+                  {loading
+                    ? "Syncing"
+                    : status.tone === "error"
+                      ? "Issue"
+                      : "Live"}
                 </Badge>
               </CardAction>
             </CardHeader>
@@ -242,14 +314,21 @@ export function OperationsApp() {
             <SidebarTrigger className="shadow-none" />
             <Separator orientation="vertical" className="h-5" />
             <div className="flex flex-col gap-0.5">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">{currentMeta.label}</span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                {currentMeta.label}
+              </span>
               <h1 className="text-lg font-semibold">{currentMeta.title}</h1>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <Badge variant="outline">{activeReservations.length} active reservations</Badge>
-            <Button variant="outline" onClick={() => void refresh("Inventory data refreshed.")}>
+            <Badge variant="outline">
+              {activeReservations.length} active reservations
+            </Badge>
+            <Button
+              variant="outline"
+              onClick={() => void refresh("Inventory data refreshed.")}
+            >
               <RefreshCwIcon data-icon="inline-start" />
               Refresh data
             </Button>
@@ -277,17 +356,40 @@ export function OperationsApp() {
             />
             <Route
               path="/catalog"
-              element={<CatalogPage snapshot={snapshot} loading={loading} runAction={runAction} />}
+              element={
+                <CatalogPage
+                  snapshot={snapshot}
+                  loading={loading}
+                  runAction={runAction}
+                />
+              }
             />
             <Route
               path="/inventory"
-              element={<InventoryPage snapshot={snapshot} loading={loading} runAction={runAction} />}
+              element={
+                <InventoryPage
+                  snapshot={snapshot}
+                  loading={loading}
+                  runAction={runAction}
+                />
+              }
             />
             <Route
               path="/reservations"
-              element={<ReservationsPage snapshot={snapshot} loading={loading} runAction={runAction} />}
+              element={
+                <ReservationsPage
+                  snapshot={snapshot}
+                  loading={loading}
+                  runAction={runAction}
+                />
+              }
             />
-            <Route path="/audit" element={<AuditPage auditLogs={snapshot.auditLogs} loading={loading} />} />
+            <Route
+              path="/audit"
+              element={
+                <AuditPage auditLogs={snapshot.auditLogs} loading={loading} />
+              }
+            />
             <Route path="*" element={<NavigateToOverview />} />
           </Routes>
         </main>
@@ -306,7 +408,9 @@ function NavigateToOverview() {
               <ArrowUpRightIcon />
             </EmptyMedia>
             <EmptyTitle>Page not found</EmptyTitle>
-            <EmptyDescription>Use the sidebar to move back to a valid workspace page.</EmptyDescription>
+            <EmptyDescription>
+              Use the sidebar to move back to a valid workspace page.
+            </EmptyDescription>
           </EmptyHeader>
           <Button asChild variant="outline">
             <Link to="/">Go to overview</Link>

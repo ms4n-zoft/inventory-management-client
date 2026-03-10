@@ -11,16 +11,15 @@ describe("app", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
-          vendors: [],
           products: [],
           plans: [],
           skus: [],
           inventoryPools: [],
           reservations: [],
           entitlements: [],
-          auditLogs: []
-        })
-      })
+          auditLogs: [],
+        }),
+      }),
     );
   });
 
@@ -29,10 +28,16 @@ describe("app", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /inventory overview/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: /inventory overview/i }),
+      ).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("link", { name: /open catalog setup/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /refresh data/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /open catalog setup/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /refresh data/i }),
+    ).toBeInTheDocument();
   });
 });

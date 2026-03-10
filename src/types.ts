@@ -1,15 +1,12 @@
-export type Vendor = {
-  id: string;
-  name: string;
-  status: "active" | "inactive";
-  createdAt: string;
-};
+export type Region = "MENA" | "GLOBAL" | "US" | "EU" | "INDIA" | "APAC";
 
 export type Product = {
   id: string;
-  vendorId: string;
+  externalId: string;
   name: string;
+  vendor: string;
   description: string;
+  logoUrl: string;
   createdAt: string;
 };
 
@@ -26,7 +23,7 @@ export type Sku = {
   planId: string;
   code: string;
   billingPeriod: "monthly" | "yearly";
-  region: "GLOBAL" | "US" | "EU" | "INDIA" | "APAC";
+  region?: Region;
   seatType: "seat" | "license_key";
   createdAt: string;
 };
@@ -34,7 +31,7 @@ export type Sku = {
 export type InventoryPool = {
   id: string;
   skuId: string;
-  region: Sku["region"];
+  region: Region;
   totalQuantity: number;
   reservedQuantity: number;
   allocatedQuantity: number;
@@ -44,7 +41,7 @@ export type InventoryPool = {
 export type Reservation = {
   id: string;
   skuId: string;
-  region: Sku["region"];
+  region: Region;
   quantity: number;
   status: "RESERVED" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
   expiresAt: string;
@@ -56,7 +53,7 @@ export type Entitlement = {
   reservationId: string;
   customerId: string;
   skuId: string;
-  region: Sku["region"];
+  region: Region;
   quantity: number;
   status: "ACTIVE" | "EXPIRED" | "REVOKED";
   createdAt: string;
@@ -70,7 +67,6 @@ export type AuditLog = {
 };
 
 export type DashboardSnapshot = {
-  vendors: Vendor[];
   products: Product[];
   plans: Plan[];
   skus: Sku[];
