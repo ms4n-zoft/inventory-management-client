@@ -1,4 +1,8 @@
-import type { DashboardSnapshot } from "../types";
+import type {
+  DashboardSnapshot,
+  PricePerUnit,
+  SkuCatalogEntry,
+} from "../types";
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:4000";
 
@@ -31,9 +35,9 @@ export type ProductSearchResult = {
 
 export type ProductPricingPlan = {
   plan: string;
-  entity?: string;
   amount?: string;
   currency?: string;
+  entity?: string;
   period?: string;
   description?: string[];
   updated_on?: string;
@@ -54,6 +58,7 @@ const zoftwareBaseUrl = "https://api.zoftwarehub.com";
 
 export const api = {
   getDashboard: () => request<DashboardSnapshot>("/api/dashboard"),
+  getSkus: () => request<SkuCatalogEntry[]>("/api/skus"),
   searchProducts: async (
     query: string,
     limit = 6,
@@ -104,6 +109,7 @@ export const api = {
       billingPeriod: "monthly" | "yearly";
       region?: "MENA" | "GLOBAL" | "US" | "EU" | "INDIA" | "APAC";
       seatType: "seat" | "license_key";
+      pricePerUnit: PricePerUnit;
     };
   }) =>
     request("/api/catalog/entries", {
@@ -122,6 +128,7 @@ export const api = {
     billingPeriod: "monthly" | "yearly";
     region?: "MENA" | "GLOBAL" | "US" | "EU" | "INDIA" | "APAC";
     seatType: "seat" | "license_key";
+    pricePerUnit: PricePerUnit;
   }) => request("/api/skus", { method: "POST", body: JSON.stringify(payload) }),
   createInventoryPool: (payload: {
     skuId: string;

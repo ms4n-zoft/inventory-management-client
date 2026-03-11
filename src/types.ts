@@ -18,6 +18,13 @@ export type Plan = {
   createdAt: string;
 };
 
+export type PricePerUnit = {
+  amount: string;
+  currency: string;
+  entity?: string;
+  ratePeriod?: string;
+};
+
 export type Sku = {
   id: string;
   planId: string;
@@ -25,6 +32,7 @@ export type Sku = {
   billingPeriod: "monthly" | "yearly";
   region?: Region;
   seatType: "seat" | "license_key";
+  pricePerUnit?: PricePerUnit;
   createdAt: string;
 };
 
@@ -74,4 +82,10 @@ export type DashboardSnapshot = {
   reservations: Reservation[];
   entitlements: Entitlement[];
   auditLogs: AuditLog[];
+};
+
+export type SkuCatalogEntry = {
+  sku: Sku;
+  plan: Plan;
+  product: Product;
 };

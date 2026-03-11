@@ -6,7 +6,7 @@ import {
   PackageIcon,
   SearchIcon,
 } from "lucide-react";
-import type { DashboardSnapshot, Region, Sku } from "@/types";
+import type { DashboardSnapshot, PricePerUnit, Region, Sku } from "@/types";
 import type { ProductPricingPlan, ProductSearchResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +41,36 @@ const billingPeriods = [
   { value: "yearly", label: "yearly" },
 ];
 
+function createEmptyPricePerUnit(): PricePerUnit {
+  return {
+    amount: "",
+    currency: "USD",
+    entity: "",
+    ratePeriod: "",
+  };
+}
+
+function isFreeAmount(amount?: string): boolean {
+  if (!amount?.trim()) return false;
+
+  const parsedAmount = Number(amount);
+  return Number.isFinite(parsedAmount) && parsedAmount === 0;
+}
+
+function formatCurrencyPrefix(currency?: string): string {
+  const normalizedCurrency = currency?.trim().toUpperCase();
+
+  return normalizedCurrency === "USD"
+    ? "$"
+    : normalizedCurrency === "EUR"
+      ? "EUR "
+      : normalizedCurrency === "GBP"
+        ? "GBP "
+        : normalizedCurrency
+          ? `${normalizedCurrency} `
+          : "";
+}
+
 function planLabel(p: {
   plan: string;
   amount?: string;
@@ -51,31 +81,46 @@ function planLabel(p: {
   return p.plan;
 }
 
-function planPricingLine(p: {
-  plan: string;
+function formatPriceLine(p: {
   entity?: string;
   amount?: string;
   currency?: string;
+  ratePeriod?: string;
   period?: string;
   isPlanFree?: boolean;
+  fallbackText?: string;
 }): string {
-  if (p.isPlanFree || p.plan.trim().toLowerCase() === "free") return "Free";
-  if (p.amount) {
-    const currency =
-      p.currency === "USD"
-        ? "$"
-        : p.currency === "EUR"
-          ? "EUR "
-          : p.currency === "GBP"
-            ? "GBP "
-            : p.currency
-              ? `${p.currency} `
-              : "";
-    const cadence = [p.entity, p.period].filter(Boolean).join(" / ");
+  if (p.isPlanFree || isFreeAmount(p.amount)) return "Free";
+  if (p.amount?.trim()) {
+    const currency = formatCurrencyPrefix(p.currency);
+    const cadence = [p.entity, p.ratePeriod ?? p.period]
+      .filter(Boolean)
+      .join(" / ");
 
     return `${currency}${p.amount}${cadence ? ` / ${cadence}` : ""}`;
   }
-  return "No pricing returned by source API";
+  return p.fallbackText ?? "No pricing returned by source API";
+}
+
+function pricePerUnitFromPlan(plan: ProductPricingPlan): PricePerUnit {
+  return {
+    amount:
+      plan.isPlanFree || plan.plan.trim().toLowerCase() === "free"
+        ? "0"
+        : (plan.amount ?? ""),
+    currency: plan.currency ?? "USD",
+    entity: plan.entity ?? "",
+    ratePeriod: plan.period ?? "",
+  };
+}
+
+function normalizePricePerUnit(pricePerUnit: PricePerUnit): PricePerUnit {
+  return {
+    amount: pricePerUnit.amount.trim(),
+    currency: pricePerUnit.currency.trim().toUpperCase(),
+    entity: pricePerUnit.entity?.trim() || undefined,
+    ratePeriod: pricePerUnit.ratePeriod?.trim() || undefined,
+  };
 }
 
 function formatSkuLabel(sku: Pick<Sku, "code" | "region" | "billingPeriod">) {
@@ -101,6 +146,9 @@ export function CatalogPage({
   const [pricingPlans, setPricingPlans] = useState<ProductPricingPlan[]>([]);
   const [loadingPricing, setLoadingPricing] = useState(false);
   const [planName, setPlanName] = useState("");
+  const [pricePerUnit, setPricePerUnit] = useState<PricePerUnit>(
+    createEmptyPricePerUnit(),
+  );
 
   const [skuCode, setSkuCode] = useState("");
   const [skuRegion, setSkuRegion] = useState("");
@@ -115,6 +163,7 @@ export function CatalogPage({
     setSelectedProduct(null);
     setPricingPlans([]);
     setPlanName("");
+    setPricePerUnit(createEmptyPricePerUnit());
     setSearchDone(false);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -146,15 +195,36 @@ export function CatalogPage({
     setSearchDone(false);
     setPlanName("");
     setPricingPlans([]);
+    setPricePerUnit(createEmptyPricePerUnit());
 
     setLoadingPricing(true);
     try {
       const plans = await api.getProductPricing(product.slug);
       setPricingPlans(plans);
-      if (plans.length > 0) setPlanName(plans[0]!.plan);
+      if (plans.length > 0) {
+        const initialPlan = plans[0]!;
+        setPlanName(initialPlan.plan);
+        setPricePerUnit(pricePerUnitFromPlan(initialPlan));
+      }
     } finally {
       setLoadingPricing(false);
     }
+  };
+
+  const handlePlanNameChange = (nextPlanName: string) => {
+    setPlanName(nextPlanName);
+
+    const matchedPlan = pricingPlans.find((plan) => plan.plan === nextPlanName);
+    if (matchedPlan) {
+      setPricePerUnit(pricePerUnitFromPlan(matchedPlan));
+    }
+  };
+
+  const updatePricePerUnit = (field: keyof PricePerUnit, value: string) => {
+    setPricePerUnit((current) => ({
+      ...current,
+      [field]: value,
+    }));
   };
 
   const resetForm = () => {
@@ -164,15 +234,22 @@ export function CatalogPage({
     setSelectedProduct(null);
     setPricingPlans([]);
     setPlanName("");
+    setPricePerUnit(createEmptyPricePerUnit());
     setSkuCode("");
     setSkuRegion("");
     setSkuBillingPeriod("monthly");
   };
 
+  const hasPricing =
+    pricePerUnit.amount.trim().length > 0 &&
+    pricePerUnit.currency.trim().length > 0;
+
   const canSubmit =
     selectedProduct &&
     planName.trim().length >= 2 &&
     skuCode.trim().length >= 3 &&
+    hasPricing &&
+    !loadingPricing &&
     !loading;
 
   const selectedPricingPlan = pricingPlans.find(
@@ -201,6 +278,9 @@ export function CatalogPage({
             onSubmit={(event) => {
               event.preventDefault();
               if (!selectedProduct) return;
+              const normalizedPricePerUnit =
+                normalizePricePerUnit(pricePerUnit);
+
               void runAction(
                 () =>
                   api.addCatalogEntry({
@@ -217,6 +297,7 @@ export function CatalogPage({
                       billingPeriod: skuBillingPeriod as Sku["billingPeriod"],
                       region: skuRegion ? (skuRegion as Region) : undefined,
                       seatType: "seat",
+                      pricePerUnit: normalizedPricePerUnit,
                     },
                   }),
                 "Product, plan, and SKU created.",
@@ -322,6 +403,7 @@ export function CatalogPage({
                           setSearchQuery("");
                           setPricingPlans([]);
                           setPlanName("");
+                          setPricePerUnit(createEmptyPricePerUnit());
                         }}
                       >
                         Change
@@ -352,18 +434,13 @@ export function CatalogPage({
                           options={pricingPlans.map((p) => ({
                             value: p.plan,
                             label: planLabel(p),
-                            description: planPricingLine(p),
+                            description: formatPriceLine(p),
                           }))}
                           value={planName}
-                          onChange={setPlanName}
+                          onChange={handlePlanNameChange}
                           placeholder="Select a plan"
                           inputPlaceholder="e.g. Enterprise"
                         />
-                        <FieldDescription>
-                          {selectedPricingPlan
-                            ? planPricingLine(selectedPricingPlan)
-                            : "Plans fetched from the product catalog."}
-                        </FieldDescription>
                       </>
                     ) : (
                       <>
@@ -373,14 +450,71 @@ export function CatalogPage({
                           placeholder="e.g. Standard"
                           disabled={!selectedProduct}
                         />
-                        {selectedProduct && (
-                          <FieldDescription>
-                            No pricing data found — enter a plan name manually.
-                          </FieldDescription>
-                        )}
                       </>
                     )}
+                    <FieldDescription>
+                      {selectedPricingPlan
+                        ? `Fetched quoted rate: ${formatPriceLine(selectedPricingPlan)}. You can edit that quote below before saving. SKU billing period on the right remains the canonical cadence.`
+                        : selectedProduct
+                          ? "Enter the plan name and quoted rate details. SKU billing period on the right is the canonical cadence for this SKU."
+                          : "Choose a product first to fetch plan suggestions."}
+                    </FieldDescription>
                   </Field>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel>Price amount</FieldLabel>
+                      <Input
+                        value={pricePerUnit.amount}
+                        onChange={(event) =>
+                          updatePricePerUnit("amount", event.target.value)
+                        }
+                        placeholder="e.g. 12"
+                        inputMode="decimal"
+                        disabled={!selectedProduct || loadingPricing}
+                      />
+                      <FieldDescription>
+                        Required. Use 0 for free plans.
+                      </FieldDescription>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Currency</FieldLabel>
+                      <Input
+                        value={pricePerUnit.currency ?? ""}
+                        onChange={(event) =>
+                          updatePricePerUnit("currency", event.target.value)
+                        }
+                        placeholder="USD"
+                        disabled={!selectedProduct || loadingPricing}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Charged per</FieldLabel>
+                      <Input
+                        value={pricePerUnit.entity ?? ""}
+                        onChange={(event) =>
+                          updatePricePerUnit("entity", event.target.value)
+                        }
+                        placeholder="e.g. user"
+                        disabled={!selectedProduct || loadingPricing}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Rate period</FieldLabel>
+                      <Input
+                        value={pricePerUnit.ratePeriod ?? ""}
+                        onChange={(event) =>
+                          updatePricePerUnit("ratePeriod", event.target.value)
+                        }
+                        placeholder="e.g. month"
+                        disabled={!selectedProduct || loadingPricing}
+                      />
+                      <FieldDescription>
+                        Optional. Only fill this when the quoted rate cadence
+                        differs from the SKU billing period.
+                      </FieldDescription>
+                    </Field>
+                  </div>
                 </FieldGroup>
               </div>
 
@@ -418,6 +552,11 @@ export function CatalogPage({
                       placeholder="Select a billing period"
                       inputPlaceholder="e.g. quarterly"
                     />
+                    <FieldDescription>
+                      This is the canonical cadence for the SKU. Use the rate
+                      period on the left only when the quoted vendor rate uses a
+                      different cadence.
+                    </FieldDescription>
                   </Field>
                 </FieldGroup>
               </div>
@@ -492,7 +631,15 @@ export function CatalogPage({
                             key={sku.id}
                             className="rounded-md border bg-muted/50 px-2 py-1"
                           >
-                            {formatSkuLabel(sku)}
+                            <span className="font-medium text-foreground">
+                              {formatSkuLabel(sku)}
+                            </span>
+                            <span className="block text-[11px]">
+                              {formatPriceLine({
+                                ...sku.pricePerUnit,
+                                fallbackText: "Pricing unavailable",
+                              })}
+                            </span>
                           </span>
                         ))}
                       </div>
