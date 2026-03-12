@@ -1,6 +1,9 @@
 import type {
   DashboardSnapshot,
+  Plan,
   PricePerUnit,
+  Product,
+  Sku,
   SkuCatalogEntry,
 } from "../types";
 
@@ -42,6 +45,12 @@ export type ProductPricingPlan = {
   description?: string[];
   updated_on?: string;
   isPlanFree?: boolean;
+};
+
+export type CatalogEntryResponse = {
+  product: Product;
+  plan: Plan;
+  sku: Sku;
 };
 
 type ExternalProductResult = {
@@ -112,7 +121,7 @@ export const api = {
       pricePerUnit: PricePerUnit;
     };
   }) =>
-    request("/api/catalog/entries", {
+    request<CatalogEntryResponse>("/api/catalog/entries", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -121,7 +130,10 @@ export const api = {
     name: string;
     planType: "standard" | "enterprise";
   }) =>
-    request("/api/plans", { method: "POST", body: JSON.stringify(payload) }),
+    request<Plan>("/api/plans", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   createSku: (payload: {
     planId: string;
     code: string;
@@ -129,7 +141,25 @@ export const api = {
     region?: "MENA" | "GLOBAL" | "US" | "EU" | "INDIA" | "APAC";
     seatType: "seat" | "license_key";
     pricePerUnit: PricePerUnit;
-  }) => request("/api/skus", { method: "POST", body: JSON.stringify(payload) }),
+  }) =>
+    request<Sku>("/api/skus", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateSku: (
+    skuId: string,
+    payload: {
+      code: string;
+      billingPeriod: "monthly" | "yearly";
+      region?: "MENA" | "GLOBAL" | "US" | "EU" | "INDIA" | "APAC";
+      seatType: "seat" | "license_key";
+      pricePerUnit: PricePerUnit;
+    },
+  ) =>
+    request<Sku>(`/api/skus/${skuId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   createInventoryPool: (payload: {
     skuId: string;
     region: string;

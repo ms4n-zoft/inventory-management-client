@@ -100,7 +100,7 @@ export function InventoryPage({
                     () =>
                       api.createInventoryPool({
                         skuId: inventorySkuId,
-                        region: sku?.region ?? "US",
+                        region: sku?.region ?? "GLOBAL",
                         totalQuantity: inventoryQuantity,
                       }),
                     "Inventory pool created.",
@@ -182,7 +182,7 @@ export function InventoryPage({
                     () =>
                       api.adjustInventory({
                         skuId: inventorySkuId,
-                        region: sku?.region ?? "US",
+                        region: sku?.region ?? "GLOBAL",
                         change:
                           adjustmentReason === "MANUAL_REMOVE"
                             ? -Math.abs(adjustmentChange)

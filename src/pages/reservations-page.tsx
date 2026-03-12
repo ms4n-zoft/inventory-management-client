@@ -100,7 +100,7 @@ export function ReservationsPage({
                   () =>
                     api.createReservation({
                       skuId: reservationSkuId,
-                      region: sku?.region ?? "US",
+                      region: sku?.region ?? "GLOBAL",
                       quantity: reservationQuantity,
                       actor: reservationActor,
                     }),

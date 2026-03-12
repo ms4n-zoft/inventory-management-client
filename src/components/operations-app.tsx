@@ -1,9 +1,14 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
-  ArchiveIcon,
+  Link,
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
+import {
   ArrowUpRightIcon,
-  BadgeCheckIcon,
   BoxesIcon,
   ClipboardListIcon,
   PackagePlusIcon,
@@ -56,7 +61,6 @@ import {
 } from "@/components/ui/empty";
 import { OverviewPage } from "@/pages/overview-page";
 import { CatalogPage } from "@/pages/catalog-page";
-import { InventoryPage } from "@/pages/inventory-page";
 import { ReservationsPage } from "@/pages/reservations-page";
 import { AuditPage } from "@/pages/audit-page";
 
@@ -78,21 +82,15 @@ export type ActionRunner = (
 const navigationItems = [
   {
     href: "/",
-    label: "Overview",
-    icon: BoxesIcon,
-    subtitle: "status and queues",
-  },
-  {
-    href: "/catalog",
-    label: "Catalog",
+    label: "Create",
     icon: PackagePlusIcon,
-    subtitle: "products and skus",
+    subtitle: "billing and stock",
   },
   {
-    href: "/inventory",
-    label: "Inventory",
-    icon: ArchiveIcon,
-    subtitle: "stock and adjustments",
+    href: "/view",
+    label: "View",
+    icon: BoxesIcon,
+    subtitle: "everything created",
   },
   {
     href: "/reservations",
@@ -116,22 +114,34 @@ type RouteMeta = {
 
 const routeMeta: Record<string, RouteMeta> = {
   "/": {
-    label: "overview",
-    title: "Inventory overview",
+    label: "create",
+    title: "Create setup",
     description:
-      "A quick operational read on stock, reservations, and recent activity.",
+      "Create billing options and starting stock in one guided operator flow.",
+  },
+  "/create": {
+    label: "create",
+    title: "Create setup",
+    description:
+      "Create billing options and starting stock in one guided operator flow.",
   },
   "/catalog": {
-    label: "catalog",
-    title: "Catalog setup",
+    label: "create",
+    title: "Create setup",
     description:
-      "Search for products, add them to the catalog with plan and SKU in one step.",
+      "Create billing options and starting stock in one guided operator flow.",
+  },
+  "/view": {
+    label: "view",
+    title: "View created items",
+    description:
+      "Browse the billing options, inventory pools, and recent activity already in the system.",
   },
   "/inventory": {
-    label: "inventory",
-    title: "Inventory control",
+    label: "view",
+    title: "View created items",
     description:
-      "Create pools, apply adjustments, and review available inventory.",
+      "Browse the billing options, inventory pools, and recent activity already in the system.",
   },
   "/reservations": {
     label: "reservations",
@@ -149,10 +159,10 @@ const routeMeta: Record<string, RouteMeta> = {
 function getRouteMeta(pathname: string): RouteMeta {
   return (
     routeMeta[pathname] ?? {
-      label: "overview",
-      title: "Inventory overview",
+      label: "create",
+      title: "Create setup",
       description:
-        "A quick operational read on stock, reservations, and recent activity.",
+        "Create billing options and starting stock in one guided operator flow.",
     }
   );
 }
@@ -347,16 +357,6 @@ export function OperationsApp() {
             <Route
               path="/"
               element={
-                <OverviewPage
-                  snapshot={snapshot}
-                  loading={loading}
-                  activeReservations={activeReservations}
-                />
-              }
-            />
-            <Route
-              path="/catalog"
-              element={
                 <CatalogPage
                   snapshot={snapshot}
                   loading={loading}
@@ -365,14 +365,21 @@ export function OperationsApp() {
               }
             />
             <Route
-              path="/inventory"
+              path="/view"
               element={
-                <InventoryPage
+                <OverviewPage
                   snapshot={snapshot}
                   loading={loading}
+                  activeReservations={activeReservations}
                   runAction={runAction}
                 />
               }
+            />
+            <Route path="/create" element={<Navigate to="/" replace />} />
+            <Route path="/catalog" element={<Navigate to="/" replace />} />
+            <Route
+              path="/inventory"
+              element={<Navigate to="/view" replace />}
             />
             <Route
               path="/reservations"
@@ -413,7 +420,7 @@ function NavigateToOverview() {
             </EmptyDescription>
           </EmptyHeader>
           <Button asChild variant="outline">
-            <Link to="/">Go to overview</Link>
+            <Link to="/">Go to create</Link>
           </Button>
         </Empty>
       </CardContent>

@@ -29,15 +29,26 @@ describe("app", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: /inventory overview/i }),
+        screen.getByRole("heading", { name: /create setup/i }),
       ).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByRole("link", { name: /open catalog setup/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/create product setup/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /refresh data/i }),
     ).toBeInTheDocument();
+  });
+
+  it("renders the new view page route", async () => {
+    window.history.pushState({}, "", "/view");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: /view created items/i }),
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/view everything created/i)).toBeInTheDocument();
   });
 });
