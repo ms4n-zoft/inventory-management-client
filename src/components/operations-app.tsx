@@ -10,7 +10,6 @@ import {
 import {
   ArrowUpRightIcon,
   BoxesIcon,
-  ClipboardListIcon,
   PackagePlusIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
@@ -59,9 +58,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { OverviewPage } from "@/pages/overview-page";
-import { CatalogPage } from "@/pages/catalog-page";
-import { ReservationsPage } from "@/pages/reservations-page";
+import { SetupPage } from "@/pages/setup-page";
+import { ViewPage } from "@/pages/view-page";
 import { AuditPage } from "@/pages/audit-page";
 
 const emptySnapshot: DashboardSnapshot = {
@@ -91,12 +89,6 @@ const navigationItems = [
     label: "View",
     icon: BoxesIcon,
     subtitle: "everything created",
-  },
-  {
-    href: "/reservations",
-    label: "Reservations",
-    icon: ClipboardListIcon,
-    subtitle: "holds and confirmation",
   },
   {
     href: "/audit",
@@ -144,10 +136,10 @@ const routeMeta: Record<string, RouteMeta> = {
       "Browse the billing options, inventory pools, and recent activity already in the system.",
   },
   "/reservations": {
-    label: "reservations",
-    title: "Reservation desk",
+    label: "view",
+    title: "View created items",
     description:
-      "Create holds, confirm fulfilled requests, and release stock safely.",
+      "Browse the billing options, inventory pools, and recent activity already in the system.",
   },
   "/audit": {
     label: "audit",
@@ -357,7 +349,7 @@ export function OperationsApp() {
             <Route
               path="/"
               element={
-                <CatalogPage
+                <SetupPage
                   snapshot={snapshot}
                   loading={loading}
                   runAction={runAction}
@@ -367,7 +359,7 @@ export function OperationsApp() {
             <Route
               path="/view"
               element={
-                <OverviewPage
+                <ViewPage
                   snapshot={snapshot}
                   loading={loading}
                   activeReservations={activeReservations}
@@ -383,13 +375,7 @@ export function OperationsApp() {
             />
             <Route
               path="/reservations"
-              element={
-                <ReservationsPage
-                  snapshot={snapshot}
-                  loading={loading}
-                  runAction={runAction}
-                />
-              }
+              element={<Navigate to="/view" replace />}
             />
             <Route
               path="/audit"

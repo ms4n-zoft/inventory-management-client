@@ -6,7 +6,7 @@ import type { ActionRunner } from "@/components/operations-app";
 import { api } from "@/lib/api";
 import type { DashboardSnapshot } from "@/types";
 
-import { CatalogPage } from "./catalog-page";
+import { SetupPage } from "./setup-page";
 
 const emptySnapshot: DashboardSnapshot = {
   products: [],
@@ -73,7 +73,7 @@ async function searchAndSelectProduct() {
   });
 }
 
-describe("catalog page", () => {
+describe("setup page", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(api, "searchProducts").mockResolvedValue([searchResult]);
@@ -103,7 +103,7 @@ describe("catalog page", () => {
     const runAction: ActionRunner = async () => true;
 
     render(
-      <CatalogPage
+      <SetupPage
         snapshot={emptySnapshot}
         loading={false}
         runAction={runAction}
@@ -151,7 +151,7 @@ describe("catalog page", () => {
     };
 
     render(
-      <CatalogPage
+      <SetupPage
         snapshot={emptySnapshot}
         loading={false}
         runAction={runAction}
@@ -213,7 +213,7 @@ describe("catalog page", () => {
     };
 
     render(
-      <CatalogPage
+      <SetupPage
         snapshot={emptySnapshot}
         loading={false}
         runAction={runAction}
@@ -303,7 +303,7 @@ describe("catalog page", () => {
     };
 
     render(
-      <CatalogPage
+      <SetupPage
         snapshot={{
           ...emptySnapshot,
           products: [
@@ -399,7 +399,7 @@ describe("catalog page", () => {
     };
 
     render(
-      <CatalogPage
+      <SetupPage
         snapshot={{
           ...emptySnapshot,
           products: [

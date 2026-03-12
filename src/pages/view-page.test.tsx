@@ -7,7 +7,7 @@ import type { ActionRunner } from "@/components/operations-app";
 import { api } from "@/lib/api";
 import type { DashboardSnapshot } from "@/types";
 
-import { OverviewPage } from "./overview-page";
+import { ViewPage } from "./view-page";
 
 const snapshot: DashboardSnapshot = {
   products: [
@@ -67,7 +67,7 @@ const runAction: ActionRunner = async (work) => {
   return true;
 };
 
-describe("overview page", () => {
+describe("view page", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -85,7 +85,7 @@ describe("overview page", () => {
 
     render(
       <MemoryRouter>
-        <OverviewPage
+        <ViewPage
           snapshot={snapshot}
           loading={false}
           activeReservations={[]}
@@ -141,7 +141,7 @@ describe("overview page", () => {
 
     render(
       <MemoryRouter>
-        <OverviewPage
+        <ViewPage
           snapshot={snapshot}
           loading={false}
           activeReservations={[]}
