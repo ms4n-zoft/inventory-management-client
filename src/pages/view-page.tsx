@@ -9,7 +9,6 @@ export function ViewPage() {
   const {
     snapshot,
     loading,
-    activeReservations,
     setupEntries,
     inventoryRows,
     openBillingDialog,
@@ -31,7 +30,7 @@ export function ViewPage() {
         productCount={snapshot.products.length}
         billingOptionCount={snapshot.skus.length}
         inventoryPoolCount={snapshot.inventoryPools.length}
-        activeReservationCount={activeReservations.length}
+        auditEventCount={snapshot.auditLogs.length}
       />
 
       <LowStockWatchCard entries={lowAvailability} />

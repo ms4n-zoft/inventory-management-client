@@ -185,32 +185,4 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  createReservation: (payload: {
-    skuId: string;
-    region: string;
-    quantity: number;
-    actor: string;
-  }) =>
-    request("/api/reservations", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-  confirmReservation: (
-    reservationId: string,
-    payload: { customerId: string; actor: string },
-  ) =>
-    request(`/api/reservations/${reservationId}/confirm`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-  cancelReservation: (reservationId: string, payload: { actor: string }) =>
-    request(`/api/reservations/${reservationId}/cancel`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-  processExpiredReservations: () =>
-    request("/api/system/process-expired-reservations", {
-      method: "POST",
-      body: JSON.stringify({}),
-    }),
 };

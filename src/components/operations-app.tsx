@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import {
   Link,
   Navigate,
@@ -16,13 +16,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
-import type {
-  AuditLog,
-  DashboardSnapshot,
-  InventoryPool,
-  Reservation,
-  Sku,
-} from "@/types";
+import type { DashboardSnapshot } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -70,8 +64,6 @@ const emptySnapshot: DashboardSnapshot = {
   plans: [],
   skus: [],
   inventoryPools: [],
-  reservations: [],
-  entitlements: [],
   auditLogs: [],
 };
 
@@ -150,12 +142,6 @@ const routeMeta: Record<string, RouteMeta> = {
     description:
       "Browse the billing options, inventory pools, and recent activity already in the system.",
   },
-  "/reservations": {
-    label: "view",
-    title: "View created items",
-    description:
-      "Browse the billing options, inventory pools, and recent activity already in the system.",
-  },
   "/audit": {
     label: "audit",
     title: "Audit history",
@@ -190,11 +176,6 @@ export function OperationsApp() {
     tone: "neutral",
     text: "Loading inventory data.",
   });
-
-  const activeReservations = useMemo(
-    () => snapshot.reservations.filter((item) => item.status === "RESERVED"),
-    [snapshot.reservations],
-  );
 
   const refresh = async (message = "Inventory data is up to date.") => {
     setLoading(true);
@@ -323,8 +304,8 @@ export function OperationsApp() {
             </CardHeader>
             <CardContent className="pt-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Active holds</span>
-                <span>{activeReservations.length}</span>
+                <span>Tracked pools</span>
+                <span>{snapshot.inventoryPools.length}</span>
               </div>
             </CardContent>
           </Card>
@@ -348,7 +329,7 @@ export function OperationsApp() {
 
           <div className="flex items-center gap-3">
             <Badge variant="outline">
-              {activeReservations.length} active reservations
+              {snapshot.inventoryPools.length} pools tracked
             </Badge>
             <Button
               variant="outline"
@@ -385,7 +366,6 @@ export function OperationsApp() {
                 <ViewWorkspace
                   snapshot={snapshot}
                   loading={loading}
-                  activeReservations={activeReservations}
                   runAction={runAction}
                 />
               }
@@ -398,10 +378,6 @@ export function OperationsApp() {
             <Route path="/catalog" element={<Navigate to="/" replace />} />
             <Route
               path="/inventory"
-              element={<Navigate to="/view" replace />}
-            />
-            <Route
-              path="/reservations"
               element={<Navigate to="/view" replace />}
             />
             <Route

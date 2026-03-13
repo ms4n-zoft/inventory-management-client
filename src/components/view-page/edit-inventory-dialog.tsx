@@ -71,8 +71,6 @@ export function EditInventoryDialog({
               pool
                 ? {
                     totalQuantity: pool.totalQuantity,
-                    reservedQuantity: pool.reservedQuantity,
-                    allocatedQuantity: pool.allocatedQuantity,
                   }
                 : undefined
             }

@@ -67,7 +67,7 @@ export function EditBillingDialog({
             onRegionChange={onRegionChange}
             regionDescription={
               entry.hasLockedRegion
-                ? "Region is locked after stock or reservation activity exists for this billing option."
+                ? "Region is locked after stock exists for this billing option."
                 : "Leave this blank when the offer is not region-specific."
             }
             regionDisabled={entry.hasLockedRegion}

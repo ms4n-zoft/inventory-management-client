@@ -32,13 +32,13 @@ export function ViewSummaryMetrics({
   productCount,
   billingOptionCount,
   inventoryPoolCount,
-  activeReservationCount,
+  auditEventCount,
 }: {
   loading: boolean;
   productCount: number;
   billingOptionCount: number;
   inventoryPoolCount: number;
-  activeReservationCount: number;
+  auditEventCount: number;
 }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -54,8 +54,8 @@ export function ViewSummaryMetrics({
         loading={loading}
       />
       <MetricCard
-        label="Active reservations"
-        value={activeReservationCount}
+        label="Audit events"
+        value={auditEventCount}
         loading={loading}
       />
     </section>

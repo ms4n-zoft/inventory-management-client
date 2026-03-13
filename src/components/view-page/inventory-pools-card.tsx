@@ -73,7 +73,6 @@ export function InventoryPoolsCard({
                 <TableHead>Setup</TableHead>
                 <TableHead>Region</TableHead>
                 <TableHead>Total</TableHead>
-                <TableHead>Committed</TableHead>
                 <TableHead>Available</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -95,9 +94,6 @@ export function InventoryPoolsCard({
                   </TableCell>
                   <TableCell>{entry.pool.region}</TableCell>
                   <TableCell>{entry.pool.totalQuantity}</TableCell>
-                  <TableCell>
-                    {entry.pool.reservedQuantity + entry.pool.allocatedQuantity}
-                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={

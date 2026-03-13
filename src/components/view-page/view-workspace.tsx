@@ -17,12 +17,7 @@ import {
 } from "@/lib/billing-option";
 import { buildInventoryRows, buildViewSetupEntries } from "@/lib/view-data";
 import { api } from "@/lib/api";
-import type {
-  DashboardSnapshot,
-  PricePerUnit,
-  Reservation,
-  Sku,
-} from "@/types";
+import type { DashboardSnapshot, PricePerUnit, Sku } from "@/types";
 
 type InventoryDialogTarget = {
   skuId: string;
@@ -32,7 +27,6 @@ type InventoryDialogTarget = {
 type ViewWorkspaceContextValue = {
   snapshot: DashboardSnapshot;
   loading: boolean;
-  activeReservations: Reservation[];
   setupEntries: ViewSetupEntry[];
   inventoryRows: InventoryRowEntry[];
   openBillingDialog: (skuId: string) => void;
@@ -42,12 +36,10 @@ type ViewWorkspaceContextValue = {
 export function ViewWorkspace({
   snapshot,
   loading,
-  activeReservations,
   runAction,
 }: {
   snapshot: DashboardSnapshot;
   loading: boolean;
-  activeReservations: Reservation[];
   runAction: ActionRunner;
 }) {
   const [billingDialogSkuId, setBillingDialogSkuId] = useState<string | null>(
@@ -197,7 +189,6 @@ export function ViewWorkspace({
         context={{
           snapshot,
           loading,
-          activeReservations,
           setupEntries,
           inventoryRows,
           openBillingDialog: setBillingDialogSkuId,

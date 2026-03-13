@@ -54,8 +54,6 @@ export function StockStep({
               existingInventoryPool
                 ? {
                     totalQuantity: existingInventoryPool.totalQuantity,
-                    reservedQuantity: existingInventoryPool.reservedQuantity,
-                    allocatedQuantity: existingInventoryPool.allocatedQuantity,
                   }
                 : undefined
             }

@@ -148,8 +148,6 @@ const snapshot: DashboardSnapshot = {
       skuId: "sku-1",
       region: "GLOBAL",
       totalQuantity: 12,
-      reservedQuantity: 2,
-      allocatedQuantity: 1,
       updatedAt: "2026-03-12T00:00:00.000Z",
     },
     {
@@ -157,8 +155,6 @@ const snapshot: DashboardSnapshot = {
       skuId: "sku-2",
       region: "EU",
       totalQuantity: 42,
-      reservedQuantity: 5,
-      allocatedQuantity: 2,
       updatedAt: "2026-03-11T00:00:00.000Z",
     },
     {
@@ -166,8 +162,6 @@ const snapshot: DashboardSnapshot = {
       skuId: "sku-3",
       region: "MENA",
       totalQuantity: 200,
-      reservedQuantity: 0,
-      allocatedQuantity: 0,
       updatedAt: "2026-03-10T00:00:00.000Z",
     },
     {
@@ -175,13 +169,9 @@ const snapshot: DashboardSnapshot = {
       skuId: "sku-4",
       region: "GLOBAL",
       totalQuantity: 60,
-      reservedQuantity: 8,
-      allocatedQuantity: 3,
       updatedAt: "2026-03-09T00:00:00.000Z",
     },
   ],
-  reservations: [],
-  entitlements: [],
   auditLogs: [],
 };
 
@@ -200,7 +190,6 @@ function renderViewRoute(initialEntry = "/view") {
             <ViewWorkspace
               snapshot={snapshot}
               loading={false}
-              activeReservations={[]}
               runAction={runAction}
             />
           }

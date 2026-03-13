@@ -36,10 +36,10 @@ Copy `.env.example` to `.env.local` and adjust as needed. The only variable is t
 
 ## Pages
 
-| Route           | Description                              |
-| --------------- | ---------------------------------------- |
-| `/`             | Overview / dashboard snapshot            |
-| `/inventory`    | Inventory pool management                |
-| `/catalog`      | Catalog (vendors, products, plans, SKUs) |
-| `/reservations` | Active and historical reservations       |
-| `/audit`        | Audit log                                |
+| Route                   | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `/`                     | Create billing options and starting stock  |
+| `/view`                 | Browse billing options and inventory pools |
+| `/view/billing-options` | Search every created billing option        |
+| `/view/inventory-pools` | Search every tracked inventory pool        |
+| `/audit`                | Audit log                                  |

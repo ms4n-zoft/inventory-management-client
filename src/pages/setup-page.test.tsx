@@ -13,8 +13,6 @@ const emptySnapshot: DashboardSnapshot = {
   plans: [],
   skus: [],
   inventoryPools: [],
-  reservations: [],
-  entitlements: [],
   auditLogs: [],
 };
 
@@ -444,8 +442,6 @@ describe("setup page", () => {
               skuId: "sku-existing-1",
               region: "GLOBAL",
               totalQuantity: 12,
-              reservedQuantity: 2,
-              allocatedQuantity: 1,
               updatedAt: "2026-03-12T00:00:00.000Z",
             },
           ],

@@ -55,8 +55,7 @@ export function AuditPage({
               </EmptyMedia>
               <EmptyTitle>No audit events</EmptyTitle>
               <EmptyDescription>
-                Changes to inventory, reservations, and allocations will appear
-                here.
+                Changes to inventory and billing data will appear here.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

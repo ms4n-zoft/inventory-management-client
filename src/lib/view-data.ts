@@ -28,16 +28,8 @@ export function buildViewSetupEntries(
         0,
       );
       const availableQuantity = pools.reduce(
-        (sum, pool) =>
-          sum +
-          (pool.totalQuantity - pool.reservedQuantity - pool.allocatedQuantity),
+        (sum, pool) => sum + pool.totalQuantity,
         0,
-      );
-      const hasReservationActivity = snapshot.reservations.some(
-        (reservation) => reservation.skuId === sku._id,
-      );
-      const hasEntitlementActivity = snapshot.entitlements.some(
-        (entitlement) => entitlement.skuId === sku._id,
       );
 
       return {
@@ -47,8 +39,7 @@ export function buildViewSetupEntries(
         pools,
         trackedQuantity,
         availableQuantity,
-        hasLockedRegion:
-          pools.length > 0 || hasReservationActivity || hasEntitlementActivity,
+        hasLockedRegion: pools.length > 0,
       };
     })
     .filter(
@@ -75,8 +66,7 @@ export function buildInventoryRows(
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
     .map((pool) => {
       const catalogEntry = skuCatalog.get(pool.skuId);
-      const available =
-        pool.totalQuantity - pool.reservedQuantity - pool.allocatedQuantity;
+      const available = pool.totalQuantity;
 
       return {
         pool,

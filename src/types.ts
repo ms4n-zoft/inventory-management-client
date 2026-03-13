@@ -41,30 +41,7 @@ export type InventoryPool = {
   skuId: string;
   region: Region;
   totalQuantity: number;
-  reservedQuantity: number;
-  allocatedQuantity: number;
   updatedAt: string;
-};
-
-export type Reservation = {
-  _id: string;
-  skuId: string;
-  region: Region;
-  quantity: number;
-  status: "RESERVED" | "CONFIRMED" | "EXPIRED" | "CANCELLED";
-  expiresAt: string;
-  createdAt: string;
-};
-
-export type Entitlement = {
-  _id: string;
-  reservationId: string;
-  customerId: string;
-  skuId: string;
-  region: Region;
-  quantity: number;
-  status: "ACTIVE" | "EXPIRED" | "REVOKED";
-  createdAt: string;
 };
 
 export type AuditLog = {
@@ -79,8 +56,6 @@ export type DashboardSnapshot = {
   plans: Plan[];
   skus: Sku[];
   inventoryPools: InventoryPool[];
-  reservations: Reservation[];
-  entitlements: Entitlement[];
   auditLogs: AuditLog[];
 };
 

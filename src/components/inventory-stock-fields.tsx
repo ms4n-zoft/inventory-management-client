@@ -25,21 +25,13 @@ export function InventoryStockFields({
   actorDescription?: string;
   existingInventory?: {
     totalQuantity: number;
-    reservedQuantity: number;
-    allocatedQuantity: number;
   };
   disabled?: boolean;
 }) {
-  const currentAvailable = existingInventory
-    ? existingInventory.totalQuantity -
-      existingInventory.reservedQuantity -
-      existingInventory.allocatedQuantity
-    : 0;
-
   return (
     <div className="space-y-4">
       {existingInventory && (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-1">
           <div className="rounded-lg border px-4 py-3">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Current stock
@@ -47,21 +39,6 @@ export function InventoryStockFields({
             <p className="mt-1 text-2xl font-semibold">
               {existingInventory.totalQuantity}
             </p>
-          </div>
-          <div className="rounded-lg border px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Reserved + allocated
-            </p>
-            <p className="mt-1 text-2xl font-semibold">
-              {existingInventory.reservedQuantity +
-                existingInventory.allocatedQuantity}
-            </p>
-          </div>
-          <div className="rounded-lg border px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Available now
-            </p>
-            <p className="mt-1 text-2xl font-semibold">{currentAvailable}</p>
           </div>
         </div>
       )}
