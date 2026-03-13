@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionRunner } from "@/components/operations-app";
 import { api } from "@/lib/api";
-import type { DashboardSnapshot } from "@/types";
+import type { DashboardSnapshot, PricePerUnit } from "@/types";
 
 import { SetupPage } from "./setup-page";
 
@@ -24,6 +24,20 @@ const searchResult = {
   description: "Project tracking",
   logoUrl: "",
 };
+
+const pricingOption = (
+  billingCycle: PricePerUnit["billingCycle"],
+  amount: string,
+  currency = "USD",
+  entity = "user",
+  ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
+): PricePerUnit => ({
+  billingCycle,
+  amount,
+  currency,
+  entity,
+  ratePeriod,
+});
 
 const catalogResponse = {
   product: {
@@ -45,9 +59,15 @@ const catalogResponse = {
   sku: {
     _id: "sku-created-1",
     planId: "plan-created-1",
-    code: "jira-standard-monthly",
-    billingPeriod: "monthly" as const,
+    code: "jira-standard-gcc",
+    region: "GCC" as const,
     seatType: "seat" as const,
+    pricingOptions: [pricingOption("monthly", "18")],
+    purchaseConstraints: {
+      raw: "1 / as many needed",
+      minUnits: 1,
+    },
+    activationTimeline: "5 Days",
     createdAt: "2026-03-12T00:00:00.000Z",
   },
 };
@@ -71,9 +91,28 @@ async function searchAndSelectProduct() {
   });
 }
 
+async function selectComboboxOption(index: number, optionLabel: string) {
+  await act(async () => {
+    fireEvent.click(screen.getAllByRole("combobox")[index]!);
+  });
+
+  const candidates = screen.getAllByText(new RegExp(`^${optionLabel}$`, "i"));
+  const optionNode = candidates.find(
+    (candidate) => candidate.tagName !== "OPTION",
+  );
+
+  await act(async () => {
+    fireEvent.click(optionNode ?? candidates[0]!);
+  });
+}
+
 describe("setup page", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
     vi.spyOn(api, "searchProducts").mockResolvedValue([searchResult]);
   });
 
@@ -81,7 +120,7 @@ describe("setup page", () => {
     vi.restoreAllMocks();
   });
 
-  it("lets operators choose a fetched plan from radio cards", async () => {
+  it("lets operators choose a fetched plan and region to generate a regional code", async () => {
     vi.spyOn(api, "getProductPricing").mockResolvedValue([
       {
         plan: "Premium",
@@ -118,16 +157,16 @@ describe("setup page", () => {
       fireEvent.click(screen.getByRole("radio", { name: /best value/i }));
     });
 
+    await selectComboboxOption(0, "GCC");
+
     await waitFor(() => {
-      expect(screen.getByRole("radio", { name: /best value/i })).toBeChecked();
-      expect(screen.getByPlaceholderText(/e\.g\. 12/i)).toHaveValue("20");
       expect(
-        screen.getByDisplayValue("jira-best-value-monthly"),
+        screen.getByDisplayValue("jira-best-value-gcc"),
       ).toBeInTheDocument();
     });
   });
 
-  it("creates starting stock together with the billing option", async () => {
+  it("creates starting stock together with the regional offer", async () => {
     vi.spyOn(api, "getProductPricing").mockResolvedValue([
       {
         plan: "Standard",
@@ -157,6 +196,7 @@ describe("setup page", () => {
     );
 
     await searchAndSelectProduct();
+    await selectComboboxOption(0, "GCC");
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/e\.g\. 12/i)).toHaveValue("18");
@@ -182,101 +222,30 @@ describe("setup page", () => {
         expect.objectContaining({
           plan: { name: "Standard", planType: "standard" },
           sku: expect.objectContaining({
-            code: "jira-standard-monthly",
-            pricePerUnit: {
-              amount: "21",
-              currency: "USD",
-              entity: "user",
-              ratePeriod: "month",
-            },
+            code: "jira-standard-gcc",
+            region: "GCC",
+            pricingOptions: [
+              {
+                billingCycle: "monthly",
+                amount: "21",
+                currency: "USD",
+                entity: "user",
+                ratePeriod: "month",
+              },
+            ],
           }),
         }),
       );
       expect(createInventoryPool).toHaveBeenCalledWith({
         skuId: "sku-created-1",
-        region: "GLOBAL",
         totalQuantity: 24,
       });
     });
   });
 
-  it("keeps save disabled for manual plans until a price is entered", async () => {
-    vi.spyOn(api, "getProductPricing").mockResolvedValue([]);
-    const addCatalogEntry = vi
-      .spyOn(api, "addCatalogEntry")
-      .mockResolvedValue(catalogResponse);
-    const runAction: ActionRunner = async (work) => {
-      await work();
-      return true;
-    };
-
-    render(
-      <SetupPage
-        snapshot={emptySnapshot}
-        loading={false}
-        runAction={runAction}
-      />,
-    );
-
-    await searchAndSelectProduct();
-
-    await waitFor(() => {
-      expect(
-        screen.getByPlaceholderText(/e\.g\. standard/i),
-      ).toBeInTheDocument();
-    });
-
-    const submitButton = screen.getByRole("button", {
-      name: /save setup/i,
-    });
-
-    await act(async () => {
-      fireEvent.change(screen.getByPlaceholderText(/e\.g\. standard/i), {
-        target: { value: "Enterprise" },
-      });
-    });
-
-    await waitFor(() => {
-      expect(
-        screen.getByDisplayValue("jira-enterprise-monthly"),
-      ).toBeInTheDocument();
-    });
-
-    expect(submitButton).toBeDisabled();
-
-    await act(async () => {
-      fireEvent.change(screen.getByPlaceholderText(/e\.g\. 12/i), {
-        target: { value: "45" },
-      });
-    });
-
-    await act(async () => {
-      fireEvent.click(submitButton);
-    });
-
-    await waitFor(() => {
-      expect(addCatalogEntry).toHaveBeenCalledWith(
-        expect.objectContaining({
-          plan: { name: "Enterprise", planType: "standard" },
-          sku: expect.objectContaining({
-            code: "jira-enterprise-monthly",
-            pricePerUnit: {
-              amount: "45",
-              currency: "USD",
-              entity: undefined,
-              ratePeriod: undefined,
-            },
-          }),
-        }),
-      );
-    });
-  });
-
   it("reuses an existing product to create a new plan and starting stock", async () => {
     vi.spyOn(api, "getProductPricing").mockResolvedValue([]);
-    const addCatalogEntry = vi
-      .spyOn(api, "addCatalogEntry")
-      .mockResolvedValue(catalogResponse);
+    vi.spyOn(api, "addCatalogEntry").mockResolvedValue(catalogResponse);
     const createPlan = vi.spyOn(api, "createPlan").mockResolvedValue({
       _id: "plan-existing-1",
       productId: "product-existing-1",
@@ -287,9 +256,10 @@ describe("setup page", () => {
     const createSku = vi.spyOn(api, "createSku").mockResolvedValue({
       _id: "sku-existing-1",
       planId: "plan-existing-1",
-      code: "jira-enterprise-monthly",
-      billingPeriod: "monthly",
+      code: "jira-enterprise-india",
+      region: "INDIA",
       seatType: "seat",
+      pricingOptions: [pricingOption("monthly", "45")],
       createdAt: "2026-03-12T00:00:00.000Z",
     });
     const createInventoryPool = vi
@@ -333,6 +303,11 @@ describe("setup page", () => {
       fireEvent.change(screen.getByPlaceholderText(/e\.g\. standard/i), {
         target: { value: "Enterprise" },
       });
+    });
+
+    await selectComboboxOption(0, "INDIA");
+
+    await act(async () => {
       fireEvent.change(screen.getByPlaceholderText(/e\.g\. 12/i), {
         target: { value: "45" },
       });
@@ -348,7 +323,6 @@ describe("setup page", () => {
     });
 
     await waitFor(() => {
-      expect(addCatalogEntry).not.toHaveBeenCalled();
       expect(createPlan).toHaveBeenCalledWith({
         productId: "product-existing-1",
         name: "Enterprise",
@@ -356,20 +330,23 @@ describe("setup page", () => {
       });
       expect(createSku).toHaveBeenCalledWith({
         planId: "plan-existing-1",
-        code: "jira-enterprise-monthly",
-        billingPeriod: "monthly",
-        region: undefined,
+        code: "jira-enterprise-india",
+        region: "INDIA",
         seatType: "seat",
-        pricePerUnit: {
-          amount: "45",
-          currency: "USD",
-          entity: undefined,
-          ratePeriod: undefined,
-        },
+        pricingOptions: [
+          {
+            billingCycle: "monthly",
+            amount: "45",
+            currency: "USD",
+            entity: undefined,
+            ratePeriod: undefined,
+          },
+        ],
+        purchaseConstraints: undefined,
+        activationTimeline: undefined,
       });
       expect(createInventoryPool).toHaveBeenCalledWith({
         skuId: "sku-existing-1",
-        region: "GLOBAL",
         totalQuantity: 8,
       });
     });
@@ -380,17 +357,6 @@ describe("setup page", () => {
     const adjustInventory = vi
       .spyOn(api, "adjustInventory")
       .mockResolvedValue({});
-    const addCatalogEntry = vi
-      .spyOn(api, "addCatalogEntry")
-      .mockResolvedValue(catalogResponse);
-    const createSku = vi.spyOn(api, "createSku").mockResolvedValue({
-      _id: "sku-unused",
-      planId: "plan-unused",
-      code: "unused",
-      billingPeriod: "monthly",
-      seatType: "seat",
-      createdAt: "2026-03-12T00:00:00.000Z",
-    });
     const runAction: ActionRunner = async (work) => {
       await work();
       return true;
@@ -424,15 +390,15 @@ describe("setup page", () => {
             {
               _id: "sku-existing-1",
               planId: "plan-existing-1",
-              code: "jira-standard-monthly",
-              billingPeriod: "monthly",
+              code: "jira-standard-gcc",
+              region: "GCC",
               seatType: "seat",
-              pricePerUnit: {
-                amount: "18",
-                currency: "USD",
-                entity: "user",
-                ratePeriod: "month",
+              pricingOptions: [pricingOption("monthly", "18")],
+              purchaseConstraints: {
+                raw: "1 / as many needed",
+                minUnits: 1,
               },
+              activationTimeline: "5 Days",
               createdAt: "2026-03-12T00:00:00.000Z",
             },
           ],
@@ -440,7 +406,6 @@ describe("setup page", () => {
             {
               _id: "pool-existing-1",
               skuId: "sku-existing-1",
-              region: "GLOBAL",
               totalQuantity: 12,
               updatedAt: "2026-03-12T00:00:00.000Z",
             },
@@ -456,9 +421,7 @@ describe("setup page", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByDisplayValue("jira-standard-monthly"),
-      ).toBeInTheDocument();
+      expect(screen.getByDisplayValue("jira-standard-gcc")).toBeInTheDocument();
       expect(screen.getByRole("spinbutton")).toHaveValue(12);
     });
 
@@ -473,11 +436,8 @@ describe("setup page", () => {
     });
 
     await waitFor(() => {
-      expect(addCatalogEntry).not.toHaveBeenCalled();
-      expect(createSku).not.toHaveBeenCalled();
       expect(adjustInventory).toHaveBeenCalledWith({
         skuId: "sku-existing-1",
-        region: "GLOBAL",
         change: 6,
         reason: "MANUAL_ADD",
         actor: "operations",

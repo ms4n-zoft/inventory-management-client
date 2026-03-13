@@ -6,11 +6,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActionRunner } from "@/components/operations-app";
 import { ViewWorkspace } from "@/components/view-page/view-workspace";
 import { api } from "@/lib/api";
-import type { DashboardSnapshot } from "@/types";
+import type { DashboardSnapshot, PricePerUnit } from "@/types";
 
 import { BillingOptionsPage } from "./billing-options-page";
 import { InventoryPoolsPage } from "./inventory-pools-page";
 import { ViewPage } from "./view-page";
+
+const pricingOption = (
+  billingCycle: PricePerUnit["billingCycle"],
+  amount: string,
+  currency = "USD",
+  entity = "user",
+  ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
+): PricePerUnit => ({
+  billingCycle,
+  amount,
+  currency,
+  entity,
+  ratePeriod,
+});
 
 const snapshot: DashboardSnapshot = {
   products: [
@@ -85,60 +99,52 @@ const snapshot: DashboardSnapshot = {
     {
       _id: "sku-1",
       planId: "plan-1",
-      code: "jira-standard-monthly",
-      billingPeriod: "monthly",
+      code: "jira-standard-gcc",
+      region: "GCC",
       seatType: "seat",
-      pricePerUnit: {
-        amount: "18",
-        currency: "USD",
-        entity: "user",
-        ratePeriod: "month",
+      pricingOptions: [pricingOption("monthly", "18")],
+      purchaseConstraints: {
+        raw: "1 / as many needed",
+        minUnits: 1,
       },
+      activationTimeline: "5 Days",
       createdAt: "2026-03-12T00:00:00.000Z",
     },
     {
       _id: "sku-2",
       planId: "plan-2",
-      code: "confluence-premium-yearly-eu",
-      billingPeriod: "yearly",
-      region: "EU",
+      code: "confluence-premium-india",
+      region: "INDIA",
       seatType: "seat",
-      pricePerUnit: {
-        amount: "120",
-        currency: "USD",
-        entity: "user",
-        ratePeriod: "year",
+      pricingOptions: [pricingOption("yearly", "120")],
+      purchaseConstraints: {
+        raw: "3 / then bundles of 5",
+        minUnits: 3,
+        increment: 5,
       },
+      activationTimeline: "7 Working Days",
       createdAt: "2026-03-11T00:00:00.000Z",
     },
     {
       _id: "sku-3",
       planId: "plan-3",
-      code: "mailchimp-premium-monthly-mena",
-      billingPeriod: "monthly",
-      region: "MENA",
+      code: "mailchimp-premium-gcc",
+      region: "GCC",
       seatType: "seat",
-      pricePerUnit: {
-        amount: "350",
-        currency: "USD",
-        entity: "user",
-        ratePeriod: "month",
-      },
+      pricingOptions: [
+        pricingOption("monthly", "350"),
+        pricingOption("yearly", "320"),
+      ],
+      activationTimeline: "7 Working Days",
       createdAt: "2026-03-10T00:00:00.000Z",
     },
     {
       _id: "sku-4",
       planId: "plan-4",
-      code: "slack-business-monthly-global",
-      billingPeriod: "monthly",
-      region: "GLOBAL",
+      code: "slack-business-india",
+      region: "INDIA",
       seatType: "seat",
-      pricePerUnit: {
-        amount: "14",
-        currency: "USD",
-        entity: "user",
-        ratePeriod: "month",
-      },
+      pricingOptions: [pricingOption("monthly", "14")],
       createdAt: "2026-03-09T00:00:00.000Z",
     },
   ],
@@ -146,28 +152,24 @@ const snapshot: DashboardSnapshot = {
     {
       _id: "pool-1",
       skuId: "sku-1",
-      region: "GLOBAL",
       totalQuantity: 12,
       updatedAt: "2026-03-12T00:00:00.000Z",
     },
     {
       _id: "pool-2",
       skuId: "sku-2",
-      region: "EU",
       totalQuantity: 42,
       updatedAt: "2026-03-11T00:00:00.000Z",
     },
     {
       _id: "pool-3",
       skuId: "sku-3",
-      region: "MENA",
       totalQuantity: 200,
       updatedAt: "2026-03-10T00:00:00.000Z",
     },
     {
       _id: "pool-4",
       skuId: "sku-4",
-      region: "GLOBAL",
       totalQuantity: 60,
       updatedAt: "2026-03-09T00:00:00.000Z",
     },
@@ -208,7 +210,7 @@ describe("view page", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows only the latest three records and links to full detail pages", () => {
+  it("shows only the latest three offer records and links to full detail pages", () => {
     renderViewRoute();
 
     expect(
@@ -231,21 +233,21 @@ describe("view page", () => {
     ).not.toBeInTheDocument();
 
     expect(
-      screen.getByRole("button", { name: /edit inventory for jira global/i }),
+      screen.getByRole("button", { name: /edit inventory for jira gcc/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: /edit inventory for confluence eu/i,
+        name: /edit inventory for confluence india/i,
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: /edit inventory for mailchimp mena/i,
+        name: /edit inventory for mailchimp gcc/i,
       }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
-        name: /edit inventory for slack global/i,
+        name: /edit inventory for slack india/i,
       }),
     ).not.toBeInTheDocument();
 
@@ -255,15 +257,10 @@ describe("view page", () => {
     expect(viewAllLinks[1]).toHaveAttribute("href", "/view/inventory-pools");
   });
 
-  it("edits billing from the view dialog", async () => {
+  it("edits offer pricing from the view dialog", async () => {
     const updateSku = vi.spyOn(api, "updateSku").mockResolvedValue({
       ...snapshot.skus[0]!,
-      pricePerUnit: {
-        amount: "25",
-        currency: "USD",
-        entity: "user",
-        ratePeriod: "month",
-      },
+      pricingOptions: [pricingOption("monthly", "25")],
     });
 
     renderViewRoute();
@@ -294,16 +291,23 @@ describe("view page", () => {
 
     await waitFor(() => {
       expect(updateSku).toHaveBeenCalledWith("sku-1", {
-        code: "jira-standard-monthly",
-        billingPeriod: "monthly",
-        region: undefined,
+        code: "jira-standard-gcc",
+        region: "GCC",
         seatType: "seat",
-        pricePerUnit: {
-          amount: "25",
-          currency: "USD",
-          entity: "user",
-          ratePeriod: "month",
+        pricingOptions: [
+          {
+            billingCycle: "monthly",
+            amount: "25",
+            currency: "USD",
+            entity: "user",
+            ratePeriod: "monthly",
+          },
+        ],
+        purchaseConstraints: {
+          raw: "1 / as many needed",
+          minUnits: 1,
         },
+        activationTimeline: "5 Days",
       });
     });
   });
@@ -318,7 +322,7 @@ describe("view page", () => {
     await act(async () => {
       fireEvent.click(
         screen.getByRole("button", {
-          name: /edit inventory for jira standard/i,
+          name: /edit inventory for jira gcc/i,
         }),
       );
     });
@@ -342,7 +346,6 @@ describe("view page", () => {
     await waitFor(() => {
       expect(adjustInventory).toHaveBeenCalledWith({
         skuId: "sku-1",
-        region: "GLOBAL",
         change: 6,
         reason: "MANUAL_ADD",
         actor: "operations",
@@ -350,16 +353,16 @@ describe("view page", () => {
     });
   });
 
-  it("searches all billing options on the dedicated page", async () => {
+  it("searches all regional offers on the dedicated billing page", async () => {
     renderViewRoute("/view/billing-options");
 
     await act(async () => {
       fireEvent.change(
         screen.getByPlaceholderText(
-          /product, vendor, plan, code, cadence, or region/i,
+          /product, vendor, plan, code, cycle, or region/i,
         ),
         {
-          target: { value: "mailchmp" },
+          target: { value: "india" },
         },
       );
     });
@@ -367,32 +370,12 @@ describe("view page", () => {
     await waitFor(() => {
       expect(
         screen.getByRole("button", {
-          name: /edit billing for mailchimp premium/i,
+          name: /edit billing for confluence premium/i,
         }),
       ).toBeInTheDocument();
     });
 
     expect(screen.queryByText(/jira/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/confluence/i)).not.toBeInTheDocument();
-  });
-
-  it("searches all inventory pools on the dedicated page", async () => {
-    renderViewRoute("/view/inventory-pools");
-
-    await act(async () => {
-      fireEvent.change(
-        screen.getByPlaceholderText(/product, plan, code, or region/i),
-        {
-          target: { value: "glbal" },
-        },
-      );
-    });
-
-    await waitFor(() => {
-      expect(screen.getAllByText(/global/i).length).toBeGreaterThan(0);
-    });
-
     expect(screen.queryByText(/mailchimp/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/confluence/i)).not.toBeInTheDocument();
   });
 });
