@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BoxesIcon, PencilRulerIcon } from "lucide-react";
 
 import type { ProductPricingPlan, ProductSearchResult } from "@/lib/api";
@@ -13,9 +13,9 @@ import {
   ensureUniqueSkuCode,
   hasValidPurchaseConstraints,
   normalizePricingOptions,
-  normalizeRegion,
-  pricingDetailsFromPricingOptions,
+  orderRegions,
   pricePerUnitFromPlan,
+  pricingDetailsFromPricingOptions,
   purchaseConstraintsToFormValues,
   sameLabel,
 } from "@/lib/billing-option";
@@ -37,9 +37,13 @@ import {
 import type {
   BillingCycle,
   DashboardSnapshot,
+  InventoryPool,
   PricePerUnit,
   PricingDetails,
   Product,
+  PurchaseConstraints,
+  Region,
+  Sku,
 } from "@/types";
 
 function slugifySkuPart(value?: string): string {
@@ -78,6 +82,113 @@ function hasValidPricingOptions(pricingOptions: PricePerUnit[]): boolean {
   );
 }
 
+const defaultInventoryActor = "operations";
+
+type RegionDraft = {
+  billingCycles: BillingCycle[];
+  pricingDetails: PricingDetails;
+  minimumUnits: string;
+  maximumUnits: string;
+  activationTimeline: string;
+  inventoryQuantity: number;
+  inventoryActor: string;
+};
+
+type RegionEntry = {
+  region: Region;
+  draft: RegionDraft;
+  pricingOptions: PricePerUnit[];
+  normalizedPricingOptions: PricePerUnit[];
+  purchaseConstraints?: PurchaseConstraints;
+  normalizedActivationTimeline?: string;
+  existingSku?: Sku;
+  existingInventoryPool?: InventoryPool;
+  generatedSkuCode: string;
+  offerReady: boolean;
+  offerChanged: boolean;
+  offerActionNeeded: boolean;
+  offerBlocked: boolean;
+  inventoryWillCreate: boolean;
+  inventoryWillAdjust: boolean;
+  inventoryDelta: number;
+  inventoryActionNeeded: boolean;
+};
+
+function createRegionDraft(pricingOption?: PricePerUnit): RegionDraft {
+  return {
+    billingCycles: pricingOption
+      ? billingCyclesFromPricingOptions([pricingOption])
+      : ["monthly"],
+    pricingDetails: pricingOption
+      ? pricingDetailsFromPricingOptions([pricingOption])
+      : createEmptyPricingDetails(),
+    minimumUnits: "",
+    maximumUnits: "",
+    activationTimeline: "",
+    inventoryQuantity: 0,
+    inventoryActor: defaultInventoryActor,
+  };
+}
+
+function cloneRegionDraft(source: RegionDraft): RegionDraft {
+  return {
+    billingCycles: [...source.billingCycles],
+    pricingDetails: { ...source.pricingDetails },
+    minimumUnits: source.minimumUnits,
+    maximumUnits: source.maximumUnits,
+    activationTimeline: source.activationTimeline,
+    inventoryQuantity: 0,
+    inventoryActor: defaultInventoryActor,
+  };
+}
+
+function regionDraftFromExisting(
+  sku: Sku,
+  inventoryQuantity: number,
+): RegionDraft {
+  const purchaseConstraintValues = purchaseConstraintsToFormValues(
+    sku.purchaseConstraints,
+  );
+
+  return {
+    billingCycles: billingCyclesFromPricingOptions(sku.pricingOptions),
+    pricingDetails: pricingDetailsFromPricingOptions(sku.pricingOptions),
+    minimumUnits: purchaseConstraintValues.minUnits,
+    maximumUnits: purchaseConstraintValues.maxUnits,
+    activationTimeline: sku.activationTimeline ?? "",
+    inventoryQuantity,
+    inventoryActor: defaultInventoryActor,
+  };
+}
+
+function samePricingOptions(
+  left: PricePerUnit[],
+  right: PricePerUnit[],
+): boolean {
+  return (
+    JSON.stringify(normalizePricingOptions(left)) ===
+    JSON.stringify(normalizePricingOptions(right))
+  );
+}
+
+function samePurchaseConstraints(
+  left?: PurchaseConstraints,
+  right?: PurchaseConstraints,
+): boolean {
+  return (
+    (left?.minUnits ?? null) === (right?.minUnits ?? null) &&
+    (left?.maxUnits ?? null) === (right?.maxUnits ?? null)
+  );
+}
+
+function joinValues(values: string[]): string {
+  if (values.length === 0) return "";
+  if (values.length === 1) return values[0]!;
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+
+  return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
+}
+
 export function SetupPage({
   snapshot,
   loading,
@@ -101,32 +212,53 @@ export function SetupPage({
   const [pricingPlans, setPricingPlans] = useState<ProductPricingPlan[]>([]);
   const [loadingPricing, setLoadingPricing] = useState(false);
   const [planName, setPlanName] = useState("");
-  const [billingCycles, setBillingCycles] = useState<BillingCycle[]>([
-    "monthly",
-  ]);
-  const [pricingDetails, setPricingDetails] = useState<PricingDetails>(
-    createEmptyPricingDetails(),
-  );
-  const [skuRegion, setSkuRegion] = useState("");
-  const [minimumUnits, setMinimumUnits] = useState("");
-  const [maximumUnits, setMaximumUnits] = useState("");
-  const [activationTimeline, setActivationTimeline] = useState("");
-  const [inventoryQuantity, setInventoryQuantity] = useState(0);
-  const [inventoryActor, setInventoryActor] = useState("operations");
+  const [selectedRegions, setSelectedRegions] = useState<Region[]>([]);
+  const [activeRegion, setActiveRegion] = useState<Region | undefined>();
+  const [regionDrafts, setRegionDrafts] = useState<
+    Partial<Record<Region, RegionDraft>>
+  >({});
 
   const skuCatalog = useMemo(() => buildSkuCatalogLookup(snapshot), [snapshot]);
+
+  const pricingSeedFromPlanName = (nextPlanName: string) => {
+    const matchedPlan = pricingPlans.find((plan) =>
+      sameLabel(plan.plan, nextPlanName),
+    );
+
+    return matchedPlan ? pricePerUnitFromPlan(matchedPlan) : undefined;
+  };
+
+  const updateSelectedRegionsPricing = (pricingOption?: PricePerUnit) => {
+    const nextBillingCycles: BillingCycle[] = pricingOption
+      ? billingCyclesFromPricingOptions([pricingOption])
+      : ["monthly"];
+    const nextPricingDetails = pricingOption
+      ? pricingDetailsFromPricingOptions([pricingOption])
+      : createEmptyPricingDetails();
+
+    setRegionDrafts((current) => {
+      const next = { ...current };
+
+      for (const region of selectedRegions) {
+        const currentDraft = next[region] ?? createRegionDraft(pricingOption);
+
+        next[region] = {
+          ...currentDraft,
+          billingCycles: [...nextBillingCycles],
+          pricingDetails: { ...nextPricingDetails },
+        };
+      }
+
+      return next;
+    });
+  };
 
   const resetPricingSetup = () => {
     setPricingPlans([]);
     setPlanName("");
-    setBillingCycles(["monthly"]);
-    setPricingDetails(createEmptyPricingDetails());
-    setSkuRegion("");
-    setMinimumUnits("");
-    setMaximumUnits("");
-    setActivationTimeline("");
-    setInventoryQuantity(0);
-    setInventoryActor("operations");
+    setSelectedRegions([]);
+    setActiveRegion(undefined);
+    setRegionDrafts({});
   };
 
   const handleSearch = useCallback((query: string) => {
@@ -170,14 +302,7 @@ export function SetupPage({
       setPricingPlans(plans);
       if (plans.length > 0) {
         const initialPlan = plans[0]!;
-        const initialPricingOption = pricePerUnitFromPlan(initialPlan);
         setPlanName(initialPlan.plan);
-        setBillingCycles(
-          billingCyclesFromPricingOptions([initialPricingOption]),
-        );
-        setPricingDetails(
-          pricingDetailsFromPricingOptions([initialPricingOption]),
-        );
       }
     } finally {
       setLoadingPricing(false);
@@ -187,22 +312,63 @@ export function SetupPage({
   const handlePlanNameChange = (nextPlanName: string) => {
     setPlanName(nextPlanName);
 
-    const matchedPlan = pricingPlans.find((plan) =>
-      sameLabel(plan.plan, nextPlanName),
-    );
-    if (matchedPlan) {
-      const matchedPricingOption = pricePerUnitFromPlan(matchedPlan);
+    updateSelectedRegionsPricing(pricingSeedFromPlanName(nextPlanName));
+  };
 
-      setBillingCycles(billingCyclesFromPricingOptions([matchedPricingOption]));
-      setPricingDetails(
-        pricingDetailsFromPricingOptions([matchedPricingOption]),
-      );
+  const selectedPricingPlan = useMemo(
+    () => pricingPlans.find((plan) => sameLabel(plan.plan, planName)),
+    [planName, pricingPlans],
+  );
+
+  const handleSelectedRegionsChange = (nextRegions: Region[]) => {
+    const orderedNextRegions = orderRegions(nextRegions);
+    const addedRegion = orderedNextRegions.find(
+      (region) => !selectedRegions.includes(region),
+    );
+    const activeDraft = activeRegion ? regionDrafts[activeRegion] : undefined;
+    const pricingSeed = pricingSeedFromPlanName(planName);
+
+    setRegionDrafts((current) => {
+      const next: Partial<Record<Region, RegionDraft>> = {};
+
+      for (const region of orderedNextRegions) {
+        next[region] =
+          current[region] ??
+          (activeDraft
+            ? cloneRegionDraft(activeDraft)
+            : createRegionDraft(pricingSeed));
+      }
+
+      return next;
+    });
+
+    setSelectedRegions(orderedNextRegions);
+
+    if (addedRegion) {
+      setActiveRegion(addedRegion);
       return;
     }
 
-    setBillingCycles(["monthly"]);
-    setPricingDetails(createEmptyPricingDetails());
+    if (orderedNextRegions.length === 0) {
+      setActiveRegion(undefined);
+      return;
+    }
+
+    if (!activeRegion || !orderedNextRegions.includes(activeRegion)) {
+      setActiveRegion(orderedNextRegions[0]);
+    }
   };
+
+  useEffect(() => {
+    if (selectedRegions.length === 0) {
+      if (activeRegion) setActiveRegion(undefined);
+      return;
+    }
+
+    if (!activeRegion || !selectedRegions.includes(activeRegion)) {
+      setActiveRegion(selectedRegions[0]);
+    }
+  }, [activeRegion, selectedRegions]);
 
   const handleEditExistingSetup = (skuId: string) => {
     const catalogEntry = skuCatalog.get(skuId);
@@ -220,21 +386,14 @@ export function SetupPage({
     setLoadingPricing(false);
     setPricingPlans([]);
     setPlanName(catalogEntry.plan.name);
-    setBillingCycles(
-      billingCyclesFromPricingOptions(catalogEntry.sku.pricingOptions),
-    );
-    setPricingDetails(
-      pricingDetailsFromPricingOptions(catalogEntry.sku.pricingOptions),
-    );
-    setSkuRegion(catalogEntry.sku.region);
-    const purchaseConstraintValues = purchaseConstraintsToFormValues(
-      catalogEntry.sku.purchaseConstraints,
-    );
-    setMinimumUnits(purchaseConstraintValues.minUnits);
-    setMaximumUnits(purchaseConstraintValues.maxUnits);
-    setActivationTimeline(catalogEntry.sku.activationTimeline ?? "");
-    setInventoryQuantity(matchingPool?.totalQuantity ?? 0);
-    setInventoryActor("operations");
+    setSelectedRegions([catalogEntry.sku.region]);
+    setActiveRegion(catalogEntry.sku.region);
+    setRegionDrafts({
+      [catalogEntry.sku.region]: regionDraftFromExisting(
+        catalogEntry.sku,
+        matchingPool?.totalQuantity ?? 0,
+      ),
+    });
 
     requestAnimationFrame(() => {
       if (typeof formRef.current?.scrollIntoView === "function") {
@@ -244,9 +403,81 @@ export function SetupPage({
   };
 
   const updatePricingDetails = (field: keyof PricingDetails, value: string) => {
-    setPricingDetails((current) => ({
+    if (!activeRegion) return;
+
+    const pricingSeed = pricingSeedFromPlanName(planName);
+
+    setRegionDrafts((current) => {
+      const activeDraft =
+        current[activeRegion] ?? createRegionDraft(pricingSeed);
+
+      return {
+        ...current,
+        [activeRegion]: {
+          ...activeDraft,
+          pricingDetails: {
+            ...activeDraft.pricingDetails,
+            [field]: value,
+          },
+        },
+      };
+    });
+  };
+
+  const updateActiveRegionDraft = (
+    updater: (draft: RegionDraft) => RegionDraft,
+  ) => {
+    if (!activeRegion) return;
+
+    const pricingSeed = pricingSeedFromPlanName(planName);
+
+    setRegionDrafts((current) => ({
       ...current,
-      [field]: value,
+      [activeRegion]: updater(
+        current[activeRegion] ?? createRegionDraft(pricingSeed),
+      ),
+    }));
+  };
+
+  const updateBillingCycles = (value: BillingCycle[]) => {
+    updateActiveRegionDraft((draft) => ({
+      ...draft,
+      billingCycles: value,
+    }));
+  };
+
+  const updateMinimumUnits = (value: string) => {
+    updateActiveRegionDraft((draft) => ({
+      ...draft,
+      minimumUnits: value,
+    }));
+  };
+
+  const updateMaximumUnits = (value: string) => {
+    updateActiveRegionDraft((draft) => ({
+      ...draft,
+      maximumUnits: value,
+    }));
+  };
+
+  const updateActivationTimeline = (value: string) => {
+    updateActiveRegionDraft((draft) => ({
+      ...draft,
+      activationTimeline: value,
+    }));
+  };
+
+  const updateInventoryQuantity = (value: number) => {
+    updateActiveRegionDraft((draft) => ({
+      ...draft,
+      inventoryQuantity: value,
+    }));
+  };
+
+  const updateInventoryActor = (value: string) => {
+    updateActiveRegionDraft((draft) => ({
+      ...draft,
+      inventoryActor: value,
     }));
   };
 
@@ -259,12 +490,6 @@ export function SetupPage({
   };
 
   const normalizedPlanName = planName.trim();
-  const normalizedRegion = normalizeRegion(skuRegion);
-  const inventoryRegion = normalizedRegion ?? "";
-
-  const selectedPricingPlan = pricingPlans.find((plan) =>
-    sameLabel(plan.plan, planName),
-  );
 
   const existingProduct = selectedProduct
     ? snapshot.products.find(
@@ -280,52 +505,129 @@ export function SetupPage({
       )
     : undefined;
 
-  const existingSku = existingPlan
-    ? snapshot.skus.find(
-        (sku) =>
-          sku.planId === existingPlan._id && sku.region === normalizedRegion,
-      )
-    : undefined;
-
-  const existingInventoryPool = existingSku
-    ? snapshot.inventoryPools.find((pool) => pool.skuId === existingSku._id)
-    : undefined;
-
-  const pricingOptions = useMemo(
-    () =>
-      buildPricingOptionsFromDetails({
-        billingCycles,
-        pricingDetails,
-      }),
-    [billingCycles, pricingDetails],
+  const existingSkuCodes = useMemo(
+    () => new Set(snapshot.skus.map((sku) => sku.code)),
+    [snapshot.skus],
   );
 
-  const normalizedPricingOptions = useMemo(
-    () => normalizePricingOptions(pricingOptions),
-    [pricingOptions],
-  );
+  const productPlanReady =
+    Boolean(selectedProduct) && normalizedPlanName.length >= 2;
 
-  const generatedSkuCode = useMemo(() => {
-    const baseCode = buildSkuCode({
-      productName: selectedProduct?.name,
-      planName: normalizedPlanName,
-      region: normalizedRegion,
+  const regionEntries = useMemo<RegionEntry[]>(() => {
+    const pricingSeed = pricingSeedFromPlanName(planName);
+
+    return selectedRegions.map((region) => {
+      const draft = regionDrafts[region] ?? createRegionDraft(pricingSeed);
+      const existingSku = existingPlan
+        ? snapshot.skus.find(
+            (sku) => sku.planId === existingPlan._id && sku.region === region,
+          )
+        : undefined;
+      const existingInventoryPool = existingSku
+        ? snapshot.inventoryPools.find((pool) => pool.skuId === existingSku._id)
+        : undefined;
+      const pricingOptions = buildPricingOptionsFromDetails({
+        billingCycles: draft.billingCycles,
+        pricingDetails: draft.pricingDetails,
+      });
+      const normalizedPricingOptions = normalizePricingOptions(pricingOptions);
+      const purchaseConstraints = buildPurchaseConstraints({
+        minUnits: draft.minimumUnits,
+        maxUnits: draft.maximumUnits,
+      });
+      const normalizedActivationTimeline =
+        draft.activationTimeline.trim() || undefined;
+      const baseCode = buildSkuCode({
+        productName: selectedProduct?.name,
+        planName: normalizedPlanName,
+        region,
+      });
+      const generatedSkuCode = !baseCode
+        ? ""
+        : existingSku
+          ? existingSku.code
+          : ensureUniqueSkuCode(baseCode, existingSkuCodes);
+      const hasPricing = hasValidPricingOptions(normalizedPricingOptions);
+      const hasValidConstraints = hasValidPurchaseConstraints({
+        minUnits: draft.minimumUnits,
+        maxUnits: draft.maximumUnits,
+      });
+      const offerReady =
+        productPlanReady &&
+        generatedSkuCode.trim().length >= 3 &&
+        hasPricing &&
+        hasValidConstraints &&
+        !loadingPricing;
+      const offerChanged = existingSku
+        ? generatedSkuCode !== existingSku.code ||
+          !samePricingOptions(
+            normalizedPricingOptions,
+            existingSku.pricingOptions,
+          ) ||
+          !samePurchaseConstraints(
+            purchaseConstraints,
+            existingSku.purchaseConstraints,
+          ) ||
+          normalizedActivationTimeline !== existingSku.activationTimeline
+        : false;
+      const offerActionNeeded = existingSku
+        ? offerReady && offerChanged
+        : offerReady;
+      const offerBlocked = existingSku
+        ? offerChanged && !offerReady
+        : !offerReady;
+      const existingInventoryTotal = existingInventoryPool?.totalQuantity ?? 0;
+      const inventoryWillCreate =
+        draft.inventoryQuantity > 0 && !existingInventoryPool;
+      const inventoryWillAdjust =
+        existingInventoryPool !== undefined &&
+        draft.inventoryQuantity !== existingInventoryTotal;
+      const inventoryDelta = existingInventoryPool
+        ? draft.inventoryQuantity - existingInventoryTotal
+        : 0;
+
+      return {
+        region,
+        draft,
+        pricingOptions,
+        normalizedPricingOptions,
+        purchaseConstraints,
+        normalizedActivationTimeline,
+        existingSku,
+        existingInventoryPool,
+        generatedSkuCode,
+        offerReady,
+        offerChanged,
+        offerActionNeeded,
+        offerBlocked,
+        inventoryWillCreate,
+        inventoryWillAdjust,
+        inventoryDelta,
+        inventoryActionNeeded: inventoryWillCreate || inventoryWillAdjust,
+      };
     });
-
-    if (!baseCode) return "";
-    if (existingSku) return existingSku.code;
-
-    return ensureUniqueSkuCode(
-      baseCode,
-      new Set(snapshot.skus.map((sku) => sku.code)),
-    );
   }, [
-    existingSku,
+    existingPlan,
+    existingSkuCodes,
+    loadingPricing,
     normalizedPlanName,
-    normalizedRegion,
+    planName,
+    productPlanReady,
+    regionDrafts,
     selectedProduct?.name,
+    selectedRegions,
+    snapshot.inventoryPools,
     snapshot.skus,
   ]);
+
+  const activeRegionValue =
+    activeRegion && selectedRegions.includes(activeRegion)
+      ? activeRegion
+      : selectedRegions[0];
+
+  const activeRegionEntry =
+    regionEntries.find((entry) => entry.region === activeRegionValue) ??
+    undefined;
 
   const recentSetups = useMemo<RecentSetupEntry[]>(
     () =>
@@ -356,67 +658,108 @@ export function SetupPage({
     [skuCatalog, snapshot.inventoryPools, snapshot.skus],
   );
 
-  const hasPricing = hasValidPricingOptions(normalizedPricingOptions);
-  const hasValidConstraints = hasValidPurchaseConstraints({
-    minUnits: minimumUnits,
-    maxUnits: maximumUnits,
-  });
-  const productPlanReady =
-    Boolean(selectedProduct) && normalizedPlanName.length >= 2;
-  const detailsReady = productPlanReady && Boolean(normalizedRegion);
-  const canCreateBillingOption =
-    detailsReady &&
-    generatedSkuCode.trim().length >= 3 &&
-    hasPricing &&
-    hasValidConstraints &&
-    !loadingPricing &&
-    !existingSku;
-
-  const inventoryWillCreate = inventoryQuantity > 0 && !existingInventoryPool;
-  const existingInventoryTotal = existingInventoryPool?.totalQuantity ?? 0;
-  const inventoryWillAdjust =
-    existingInventoryPool !== undefined &&
-    inventoryQuantity !== existingInventoryTotal;
-  const inventoryDelta = existingInventoryPool
-    ? inventoryQuantity - existingInventoryTotal
-    : 0;
-  const inventoryActionNeeded = inventoryWillCreate || inventoryWillAdjust;
+  const blockingRegions = regionEntries
+    .filter((entry) => entry.offerBlocked)
+    .map((entry) => entry.region);
+  const createOfferCount = regionEntries.filter(
+    (entry) => entry.offerActionNeeded && !entry.existingSku,
+  ).length;
+  const updateOfferCount = regionEntries.filter(
+    (entry) => entry.offerActionNeeded && entry.existingSku,
+  ).length;
+  const startTrackingCount = regionEntries.filter(
+    (entry) => entry.inventoryWillCreate,
+  ).length;
+  const adjustStockCount = regionEntries.filter(
+    (entry) => entry.inventoryWillAdjust,
+  ).length;
+  const hasPendingChanges = regionEntries.some(
+    (entry) => entry.offerActionNeeded || entry.inventoryActionNeeded,
+  );
   const canSubmit =
-    !loading && (canCreateBillingOption || inventoryActionNeeded);
+    !loading &&
+    productPlanReady &&
+    selectedRegions.length > 0 &&
+    blockingRegions.length === 0 &&
+    hasPendingChanges;
 
-  const submitLabel = existingSku
-    ? inventoryWillAdjust
-      ? "Update stock"
-      : inventoryWillCreate
-        ? "Start tracking stock"
-        : "Save setup"
-    : inventoryQuantity > 0
-      ? "Save and track stock"
-      : "Save setup";
+  const submitLabel =
+    selectedRegions.length > 1
+      ? "Save selected regions"
+      : createOfferCount === 0 &&
+          updateOfferCount === 0 &&
+          adjustStockCount === 1
+        ? "Update stock"
+        : createOfferCount === 0 &&
+            updateOfferCount === 0 &&
+            startTrackingCount === 1
+          ? "Start tracking stock"
+          : startTrackingCount > 0
+            ? "Save and track stock"
+            : updateOfferCount > 0
+              ? "Update offer"
+              : "Save setup";
 
-  const saveMessage = !detailsReady
-    ? "Pick a product, plan, and region first, then confirm the offer details and starting stock."
-    : existingSku
-      ? existingInventoryPool
-        ? inventoryWillAdjust
-          ? `Saving will update tracked stock from ${existingInventoryPool.totalQuantity} to ${inventoryQuantity} in ${inventoryRegion}.`
-          : "This regional offer already exists. Change the stock total below or adjust the offer details to create another option."
-        : inventoryQuantity > 0
-          ? `Saving will start tracking ${inventoryQuantity} seats in ${inventoryRegion} for this existing regional offer.`
-          : "This regional offer already exists. Enter a starting stock to begin tracking inventory here."
-      : inventoryQuantity > 0
-        ? `Saving will create the regional offer and start tracking ${inventoryQuantity} seats in ${inventoryRegion}.`
-        : existingProduct
-          ? "Saving will reuse the product already in your catalog and add this regional offer."
-          : "Saving will create the regional offer now. You can leave stock at 0 and track stock later.";
+  const actionPhrases: string[] = [];
+  if (createOfferCount > 0) {
+    actionPhrases.push(
+      `create ${createOfferCount} new regional ${createOfferCount === 1 ? "offer" : "offers"}`,
+    );
+  }
+  if (updateOfferCount > 0) {
+    actionPhrases.push(
+      `update ${updateOfferCount} existing regional ${updateOfferCount === 1 ? "offer" : "offers"}`,
+    );
+  }
+  if (startTrackingCount > 0) {
+    actionPhrases.push(
+      `start tracking stock in ${startTrackingCount} ${startTrackingCount === 1 ? "region" : "regions"}`,
+    );
+  }
+  if (adjustStockCount > 0) {
+    actionPhrases.push(
+      `adjust stock in ${adjustStockCount} ${adjustStockCount === 1 ? "region" : "regions"}`,
+    );
+  }
 
-  const successMessage = existingSku
-    ? inventoryWillAdjust
-      ? "Stock level updated."
-      : "Inventory tracking started."
-    : inventoryQuantity > 0
-      ? "Regional offer and starting stock created."
-      : "Regional offer created.";
+  const saveMessage = !productPlanReady
+    ? "Pick a product and plan first, then select one or more regions."
+    : selectedRegions.length === 0
+      ? "Select at least one region to open its offer tab."
+      : blockingRegions.length > 0
+        ? `Complete the ${joinValues(blockingRegions)} ${blockingRegions.length === 1 ? "tab" : "tabs"} before saving.`
+        : !hasPendingChanges
+          ? activeRegionEntry?.existingSku
+            ? "This regional offer is already saved. Update pricing, constraints, activation, or stock to make changes."
+            : "No changes to save yet."
+          : `Saving will ${joinValues(actionPhrases)}.`;
+
+  const successMessage =
+    createOfferCount + updateOfferCount > 0 &&
+    startTrackingCount + adjustStockCount > 0
+      ? "Regional offers and stock saved."
+      : createOfferCount > 0
+        ? createOfferCount > 1
+          ? "Regional offers created."
+          : "Regional offer created."
+        : updateOfferCount > 0
+          ? updateOfferCount > 1
+            ? "Regional offers updated."
+            : "Regional offer updated."
+          : adjustStockCount > 0
+            ? "Stock level updated."
+            : "Inventory tracking started.";
+
+  const fallbackDraft = createRegionDraft(pricingSeedFromPlanName(planName));
+  const activeDraft = activeRegionEntry?.draft ?? fallbackDraft;
+  const reviewPricingOptions = activeRegionEntry?.pricingOptions ?? [];
+  const existingRegions = regionEntries
+    .filter((entry) => entry.existingSku)
+    .map((entry) => entry.region);
+  const showEditIcon =
+    createOfferCount === 0 &&
+    startTrackingCount === 0 &&
+    (updateOfferCount > 0 || adjustStockCount > 0);
 
   return (
     <div ref={formRef} className="grid gap-4 xl:grid-cols-2">
@@ -439,86 +782,103 @@ export function SetupPage({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              if (!detailsReady || !canSubmit) return;
+              if (!selectedProduct || !canSubmit) return;
 
-              const normalizedPurchaseConstraints = buildPurchaseConstraints({
-                minUnits: minimumUnits,
-                maxUnits: maximumUnits,
-              });
-              const normalizedActivationTimeline =
-                activationTimeline.trim() || undefined;
+              const actionableEntries = regionEntries.filter(
+                (entry) =>
+                  entry.offerActionNeeded || entry.inventoryActionNeeded,
+              );
+
+              if (actionableEntries.length === 0) return;
 
               void runAction(async () => {
-                let nextSku = existingSku;
+                let nextProduct = existingProduct;
+                let nextPlan = existingPlan;
 
-                if (!existingSku) {
-                  if (!selectedProduct || !normalizedRegion) {
-                    throw new Error("product selection is required");
-                  }
+                for (const entry of actionableEntries) {
+                  let nextSku = entry.existingSku;
 
-                  if (!existingProduct) {
-                    const created = await api.addCatalogEntry({
-                      product: {
-                        externalId: selectedProduct.id,
-                        name: selectedProduct.name,
-                        vendor: selectedProduct.vendor,
-                        description: selectedProduct.description,
-                        logoUrl: selectedProduct.logoUrl,
-                      },
-                      plan: {
-                        name: normalizedPlanName,
-                        planType: "standard",
-                      },
-                      sku: {
-                        code: generatedSkuCode,
-                        region: normalizedRegion,
+                  if (entry.offerActionNeeded) {
+                    if (entry.existingSku) {
+                      nextSku = await api.updateSku(entry.existingSku._id, {
+                        code: entry.generatedSkuCode,
+                        region: entry.region,
+                        seatType: entry.existingSku.seatType,
+                        pricingOptions: entry.normalizedPricingOptions,
+                        purchaseConstraints: entry.purchaseConstraints,
+                        activationTimeline: entry.normalizedActivationTimeline,
+                      });
+                    } else if (!nextProduct) {
+                      const created = await api.addCatalogEntry({
+                        product: {
+                          externalId: selectedProduct.id,
+                          name: selectedProduct.name,
+                          vendor: selectedProduct.vendor,
+                          description: selectedProduct.description,
+                          logoUrl: selectedProduct.logoUrl,
+                        },
+                        plan: {
+                          name: normalizedPlanName,
+                          planType: "standard",
+                        },
+                        sku: {
+                          code: entry.generatedSkuCode,
+                          region: entry.region,
+                          seatType: "seat",
+                          pricingOptions: entry.normalizedPricingOptions,
+                          purchaseConstraints: entry.purchaseConstraints,
+                          activationTimeline:
+                            entry.normalizedActivationTimeline,
+                        },
+                      });
+
+                      nextProduct = created.product;
+                      nextPlan = created.plan;
+                      nextSku = created.sku;
+                    } else {
+                      if (!nextPlan) {
+                        nextPlan = await api.createPlan({
+                          productId: nextProduct._id,
+                          name: normalizedPlanName,
+                          planType: "standard",
+                        });
+                      }
+
+                      nextSku = await api.createSku({
+                        planId: nextPlan._id,
+                        code: entry.generatedSkuCode,
+                        region: entry.region,
                         seatType: "seat",
-                        pricingOptions: normalizedPricingOptions,
-                        purchaseConstraints: normalizedPurchaseConstraints,
-                        activationTimeline: normalizedActivationTimeline,
-                      },
+                        pricingOptions: entry.normalizedPricingOptions,
+                        purchaseConstraints: entry.purchaseConstraints,
+                        activationTimeline: entry.normalizedActivationTimeline,
+                      });
+                    }
+                  }
+
+                  if (!nextSku) continue;
+
+                  if (entry.inventoryWillCreate) {
+                    await api.createInventoryPool({
+                      skuId: nextSku._id,
+                      totalQuantity: entry.draft.inventoryQuantity,
                     });
+                    continue;
+                  }
 
-                    nextSku = created.sku;
-                  } else {
-                    const plan =
-                      existingPlan ??
-                      (await api.createPlan({
-                        productId: existingProduct._id,
-                        name: normalizedPlanName,
-                        planType: "standard",
-                      }));
-
-                    nextSku = await api.createSku({
-                      planId: plan._id,
-                      code: generatedSkuCode,
-                      region: normalizedRegion,
-                      seatType: "seat",
-                      pricingOptions: normalizedPricingOptions,
-                      purchaseConstraints: normalizedPurchaseConstraints,
-                      activationTimeline: normalizedActivationTimeline,
+                  if (entry.inventoryWillAdjust) {
+                    await api.adjustInventory({
+                      skuId: nextSku._id,
+                      change: entry.inventoryDelta,
+                      reason:
+                        entry.inventoryDelta >= 0
+                          ? "MANUAL_ADD"
+                          : "MANUAL_REMOVE",
+                      actor:
+                        entry.draft.inventoryActor.trim() ||
+                        defaultInventoryActor,
                     });
                   }
-                }
-
-                if (!nextSku) return;
-
-                if (inventoryWillCreate) {
-                  await api.createInventoryPool({
-                    skuId: nextSku._id,
-                    totalQuantity: inventoryQuantity,
-                  });
-                  return;
-                }
-
-                if (inventoryWillAdjust) {
-                  await api.adjustInventory({
-                    skuId: nextSku._id,
-                    change: inventoryDelta,
-                    reason:
-                      inventoryDelta >= 0 ? "MANUAL_ADD" : "MANUAL_REMOVE",
-                    actor: inventoryActor.trim() || "operations",
-                  });
                 }
               }, successMessage).then((ok) => {
                 if (ok) resetForm();
@@ -553,41 +913,45 @@ export function SetupPage({
                 selectedProduct={selectedProduct}
                 detailsReady={productPlanReady}
                 loadingPricing={loadingPricing}
-                existingSku={existingSku}
-                generatedSkuCode={generatedSkuCode}
-                skuRegion={skuRegion}
-                onSkuRegionChange={setSkuRegion}
-                billingCycles={billingCycles}
-                onBillingCyclesChange={setBillingCycles}
-                pricingDetails={pricingDetails}
+                selectedRegions={selectedRegions}
+                onSelectedRegionsChange={handleSelectedRegionsChange}
+                activeRegion={activeRegionEntry?.region}
+                onActiveRegionChange={setActiveRegion}
+                existingRegions={existingRegions}
+                existingSku={activeRegionEntry?.existingSku}
+                generatedSkuCode={activeRegionEntry?.generatedSkuCode ?? ""}
+                billingCycles={activeDraft.billingCycles}
+                onBillingCyclesChange={updateBillingCycles}
+                pricingDetails={activeDraft.pricingDetails}
                 onPricingDetailsChange={updatePricingDetails}
-                minimumUnits={minimumUnits}
-                onMinimumUnitsChange={setMinimumUnits}
-                maximumUnits={maximumUnits}
-                onMaximumUnitsChange={setMaximumUnits}
-                activationTimeline={activationTimeline}
-                onActivationTimelineChange={setActivationTimeline}
+                minimumUnits={activeDraft.minimumUnits}
+                onMinimumUnitsChange={updateMinimumUnits}
+                maximumUnits={activeDraft.maximumUnits}
+                onMaximumUnitsChange={updateMaximumUnits}
+                activationTimeline={activeDraft.activationTimeline}
+                onActivationTimelineChange={updateActivationTimeline}
               />
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_320px]">
               <StockStep
-                detailsReady={detailsReady}
-                existingInventoryPool={existingInventoryPool}
-                inventoryQuantity={inventoryQuantity}
-                onInventoryQuantityChange={setInventoryQuantity}
-                inventoryRegion={inventoryRegion || "Choose region"}
-                inventoryActor={inventoryActor}
-                onInventoryActorChange={setInventoryActor}
+                detailsReady={productPlanReady && Boolean(activeRegionEntry)}
+                existingInventoryPool={activeRegionEntry?.existingInventoryPool}
+                inventoryQuantity={activeDraft.inventoryQuantity}
+                onInventoryQuantityChange={updateInventoryQuantity}
+                inventoryRegion={activeRegionEntry?.region ?? "Choose region"}
+                inventoryActor={activeDraft.inventoryActor}
+                onInventoryActorChange={updateInventoryActor}
               />
 
               <SetupReviewPanel
                 selectedProductName={selectedProduct?.name}
                 planName={normalizedPlanName}
-                pricingOptions={pricingOptions}
-                inventoryRegion={inventoryRegion || "region"}
-                existingSku={existingSku}
-                generatedSkuCode={generatedSkuCode}
+                selectedRegions={selectedRegions}
+                activeRegion={activeRegionEntry?.region}
+                pricingOptions={reviewPricingOptions}
+                existingSku={activeRegionEntry?.existingSku}
+                generatedSkuCode={activeRegionEntry?.generatedSkuCode ?? ""}
                 saveMessage={saveMessage}
               />
             </div>
@@ -595,7 +959,7 @@ export function SetupPage({
             <div className="mt-6 flex items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">{saveMessage}</p>
               <Button disabled={!canSubmit}>
-                {existingSku && inventoryActionNeeded ? (
+                {showEditIcon ? (
                   <PencilRulerIcon data-icon="inline-start" />
                 ) : (
                   <BoxesIcon data-icon="inline-start" />
@@ -609,7 +973,7 @@ export function SetupPage({
 
       <RecentSetupsPanel
         entries={recentSetups}
-        editingSkuId={existingSku?._id}
+        editingSkuId={activeRegionEntry?.existingSku?._id}
         onEditSetup={handleEditExistingSetup}
       />
     </div>

@@ -13,6 +13,8 @@ const preferredBillingCycleOrder: BillingCycle[] = [
   "one_time",
 ];
 
+const preferredRegionOrder: Region[] = ["GCC", "INDIA"];
+
 export const billingCycleOptions: Array<{
   value: BillingCycle;
   label: string;
@@ -22,7 +24,7 @@ export const billingCycleOptions: Array<{
   { value: "one_time", label: "one time" },
 ];
 
-export const commonRegionOptions = ["GCC", "INDIA"].map((region) => ({
+export const commonRegionOptions = preferredRegionOrder.map((region) => ({
   value: region,
   label: region,
 }));
@@ -40,6 +42,12 @@ export function orderBillingCycles(
   return preferredBillingCycleOrder.filter((billingCycle) =>
     uniqueBillingCycles.has(billingCycle),
   );
+}
+
+export function orderRegions(regions: Region[]): Region[] {
+  const uniqueRegions = new Set(regions);
+
+  return preferredRegionOrder.filter((region) => uniqueRegions.has(region));
 }
 
 export function toggleBillingCycleSelection(
@@ -62,6 +70,19 @@ export function toggleBillingCycleSelection(
     ...orderedSelection.filter((billingCycle) => billingCycle !== "one_time"),
     nextSelection,
   ]);
+}
+
+export function toggleRegionSelection(
+  currentSelection: Region[],
+  nextSelection: Region,
+): Region[] {
+  const orderedSelection = orderRegions(currentSelection);
+
+  if (orderedSelection.includes(nextSelection)) {
+    return orderedSelection.filter((region) => region !== nextSelection);
+  }
+
+  return orderRegions([...orderedSelection, nextSelection]);
 }
 
 export function createEmptyPricingDetails(): PricingDetails {

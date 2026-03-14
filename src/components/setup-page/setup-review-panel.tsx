@@ -5,16 +5,18 @@ import type { PricePerUnit, Sku } from "@/types";
 export function SetupReviewPanel({
   selectedProductName,
   planName,
+  selectedRegions,
+  activeRegion,
   pricingOptions,
-  inventoryRegion,
   existingSku,
   generatedSkuCode,
   saveMessage,
 }: {
   selectedProductName?: string;
   planName: string;
+  selectedRegions: string[];
+  activeRegion?: string;
   pricingOptions: PricePerUnit[];
-  inventoryRegion: string;
   existingSku?: Sku;
   generatedSkuCode: string;
   saveMessage: string;
@@ -43,13 +45,24 @@ export function SetupReviewPanel({
               ? formatBillingCycles(pricingOptions)
               : "billing cycles"}
           </Badge>
-          <Badge variant="outline">{inventoryRegion || "region"}</Badge>
+          {selectedRegions.length > 0 ? (
+            selectedRegions.map((region) => (
+              <Badge
+                key={region}
+                variant={region === activeRegion ? "secondary" : "outline"}
+              >
+                {region}
+              </Badge>
+            ))
+          ) : (
+            <Badge variant="outline">region</Badge>
+          )}
           {existingSku && <Badge variant="secondary">existing setup</Badge>}
         </div>
 
         <div className="rounded-lg border bg-background px-4 py-3">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Code
+            {activeRegion ? `Code (${activeRegion})` : "Code"}
           </p>
           <p className="mt-1 font-medium text-foreground">
             {generatedSkuCode || "Generated automatically"}

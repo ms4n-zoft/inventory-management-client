@@ -15,6 +15,7 @@ export function BillingDetailsFields({
   onRegionChange,
   regionDescription,
   regionDisabled,
+  hideRegionField,
   catalogCode,
   catalogCodeDescription,
   billingCycles,
@@ -35,6 +36,7 @@ export function BillingDetailsFields({
   onRegionChange: (value: string) => void;
   regionDescription: string;
   regionDisabled?: boolean;
+  hideRegionField?: boolean;
   catalogCode: string;
   catalogCodeDescription: string;
   billingCycles: BillingCycle[];
@@ -54,19 +56,21 @@ export function BillingDetailsFields({
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field>
-        <FieldLabel>Region</FieldLabel>
-        <SelectOrInput
-          key={`${instanceKey}-region`}
-          options={commonRegionOptions}
-          value={region}
-          onChange={onRegionChange}
-          placeholder="Select a region"
-          inputPlaceholder="GCC or INDIA"
-          disabled={disabled || regionDisabled}
-        />
-        <FieldDescription>{regionDescription}</FieldDescription>
-      </Field>
+      {!hideRegionField ? (
+        <Field>
+          <FieldLabel>Region</FieldLabel>
+          <SelectOrInput
+            key={`${instanceKey}-region`}
+            options={commonRegionOptions}
+            value={region}
+            onChange={onRegionChange}
+            placeholder="Select a region"
+            inputPlaceholder="GCC or INDIA"
+            disabled={disabled || regionDisabled}
+          />
+          <FieldDescription>{regionDescription}</FieldDescription>
+        </Field>
+      ) : null}
 
       <Field className="sm:col-span-2">
         <FieldLabel>Catalog code</FieldLabel>

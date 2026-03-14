@@ -117,6 +117,20 @@ async function selectComboboxOption(index: number, optionLabel: string) {
   });
 }
 
+async function toggleRegion(optionLabel: string) {
+  const optionPattern = new RegExp(`^${optionLabel}$`, "i");
+
+  if (!screen.queryByRole("option", { name: optionPattern })) {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /regions/i }));
+    });
+  }
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole("option", { name: optionPattern }));
+  });
+}
+
 async function toggleBillingCycle(optionLabel: string) {
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: /billing cycles/i }));
@@ -182,7 +196,7 @@ describe("setup page", () => {
       fireEvent.click(screen.getByRole("radio", { name: /best value/i }));
     });
 
-    await selectComboboxOption(0, "GCC");
+    await toggleRegion("GCC");
 
     await waitFor(() => {
       expect(
@@ -221,7 +235,7 @@ describe("setup page", () => {
     );
 
     await searchAndSelectProduct();
-    await selectComboboxOption(0, "GCC");
+    await toggleRegion("GCC");
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/e\.g\. 12/i)).toHaveValue("18");
@@ -301,6 +315,128 @@ describe("setup page", () => {
     });
   });
 
+  it("creates separate regional offers from multiple selected tabs", async () => {
+    vi.spyOn(api, "getProductPricing").mockResolvedValue([
+      {
+        plan: "Standard",
+        amount: "18",
+        currency: "USD",
+        entity: "user",
+        period: "month",
+      },
+    ]);
+    const addCatalogEntry = vi
+      .spyOn(api, "addCatalogEntry")
+      .mockResolvedValue(catalogResponse);
+    const createSku = vi.spyOn(api, "createSku").mockResolvedValue({
+      _id: "sku-created-2",
+      planId: "plan-created-1",
+      code: "jira-standard-india",
+      region: "INDIA",
+      seatType: "seat",
+      pricingOptions: [pricingOption("monthly", "1400", "INR")],
+      createdAt: "2026-03-12T00:00:00.000Z",
+    });
+    const createInventoryPool = vi
+      .spyOn(api, "createInventoryPool")
+      .mockResolvedValue({});
+    const runAction: ActionRunner = async (work) => {
+      await work();
+      return true;
+    };
+
+    render(
+      <SetupPage
+        snapshot={emptySnapshot}
+        loading={false}
+        runAction={runAction}
+      />,
+    );
+
+    await searchAndSelectProduct();
+    await toggleRegion("GCC");
+
+    await act(async () => {
+      fireEvent.change(getStockQuantityInput(), {
+        target: { value: "10" },
+      });
+    });
+
+    await toggleRegion("INDIA");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /india/i })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByPlaceholderText(/e\.g\. 12/i), {
+        target: { value: "1400" },
+      });
+    });
+
+    await selectComboboxOption(0, "INR");
+
+    await act(async () => {
+      fireEvent.change(getStockQuantityInput(), {
+        target: { value: "5" },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /save selected regions/i }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(addCatalogEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sku: expect.objectContaining({
+            code: "jira-standard-gcc",
+            region: "GCC",
+            pricingOptions: [
+              {
+                billingCycle: "monthly",
+                amount: "18",
+                currency: "USD",
+                entity: "user",
+                ratePeriod: "month",
+              },
+            ],
+          }),
+        }),
+      );
+      expect(createSku).toHaveBeenCalledWith({
+        planId: "plan-created-1",
+        code: "jira-standard-india",
+        region: "INDIA",
+        seatType: "seat",
+        pricingOptions: [
+          {
+            billingCycle: "monthly",
+            amount: "1400",
+            currency: "INR",
+            entity: "user",
+            ratePeriod: "month",
+          },
+        ],
+        purchaseConstraints: undefined,
+        activationTimeline: undefined,
+      });
+      expect(createInventoryPool).toHaveBeenNthCalledWith(1, {
+        skuId: "sku-created-1",
+        totalQuantity: 10,
+      });
+      expect(createInventoryPool).toHaveBeenNthCalledWith(2, {
+        skuId: "sku-created-2",
+        totalQuantity: 5,
+      });
+    });
+  });
+
   it("reuses an existing product to create a new plan and starting stock", async () => {
     vi.spyOn(api, "getProductPricing").mockResolvedValue([]);
     vi.spyOn(api, "addCatalogEntry").mockResolvedValue(catalogResponse);
@@ -363,7 +499,7 @@ describe("setup page", () => {
       });
     });
 
-    await selectComboboxOption(0, "INDIA");
+    await toggleRegion("INDIA");
 
     await act(async () => {
       fireEvent.change(screen.getByPlaceholderText(/e\.g\. 12/i), {
