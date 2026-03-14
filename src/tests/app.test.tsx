@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../app";
 
+function getSidebarLink(href: string) {
+  return screen
+    .getAllByRole("link")
+    .find((link) => link.getAttribute("href") === href);
+}
+
 describe("app", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -35,6 +41,9 @@ describe("app", () => {
     expect(
       screen.getByRole("button", { name: /refresh data/i }),
     ).toBeInTheDocument();
+
+    expect(getSidebarLink("/")).toHaveAttribute("data-active", "true");
+    expect(getSidebarLink("/view")).not.toHaveAttribute("data-active");
   });
 
   it("renders the new view page route", async () => {
@@ -48,5 +57,7 @@ describe("app", () => {
     });
 
     expect(screen.getByText(/watch list/i)).toBeInTheDocument();
+    expect(getSidebarLink("/view")).toHaveAttribute("data-active", "true");
+    expect(getSidebarLink("/")).not.toHaveAttribute("data-active");
   });
 });
