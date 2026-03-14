@@ -2,10 +2,14 @@ import { PackageIcon } from "lucide-react";
 
 import type { ProductSearchResult } from "@/lib/api";
 import { BillingDetailsFields } from "@/components/billing-details-fields";
-import { Button } from "@/components/ui/button";
-import { FieldGroup } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { RegionMultiSelect } from "@/components/ui/region-multi-select";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { BillingCycle, PricingDetails, Region, Sku } from "@/types";
 
 import { SetupStepCard } from "./setup-step-card";
@@ -63,63 +67,48 @@ export function BillingStep({
       {selectedProduct ? (
         <FieldGroup>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Offer regions</label>
+            <Field>
+              <FieldLabel>Offer regions</FieldLabel>
               <RegionMultiSelect
                 value={selectedRegions}
                 onChange={onSelectedRegionsChange}
                 disabled={!detailsReady || loadingPricing}
               />
-              <p className="text-sm text-muted-foreground">
-                Each selected region gets its own tab. New tabs copy the active
-                offer details and start with stock set to 0.
-              </p>
-            </div>
+              <FieldDescription>
+                Pick one or both regions. You can keep multiple selected at
+                once, and each selected region opens its own offer tab.
+              </FieldDescription>
+            </Field>
 
             {selectedRegions.length > 0 && activeRegion ? (
-              <div className="space-y-4">
-                <div
-                  role="tablist"
-                  aria-label="Region tabs"
-                  className="flex flex-wrap gap-2"
-                >
+              <Tabs
+                value={activeRegion}
+                onValueChange={(value) => onActiveRegionChange(value as Region)}
+              >
+                <TabsList variant="line" aria-label="Region tabs">
                   {selectedRegions.map((region) => {
-                    const selected = region === activeRegion;
                     const existingRegion = existingRegions.includes(region);
 
                     return (
-                      <Button
+                      <TabsTrigger
                         key={region}
-                        type="button"
-                        role="tab"
-                        id={`region-tab-${region.toLowerCase()}`}
-                        aria-selected={selected}
-                        aria-controls={`region-panel-${region.toLowerCase()}`}
-                        variant={selected ? "secondary" : "outline"}
-                        className={cn(
-                          "h-auto min-h-11 items-start px-4 py-2 text-left",
-                          selected && "ring-3 ring-ring/30",
-                        )}
-                        onClick={() => onActiveRegionChange(region)}
+                        value={region}
+                        className="group/region-tab h-auto items-start gap-0 text-left"
                       >
-                        <span className="flex flex-col items-start gap-0.5">
-                          <span>{region}</span>
+                        <span className="flex flex-col items-start gap-1">
+                          <span className="leading-none">{region}</span>
                           {existingRegion ? (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground transition-colors group-data-[state=active]/region-tab:text-muted-foreground">
                               existing setup
                             </span>
                           ) : null}
                         </span>
-                      </Button>
+                      </TabsTrigger>
                     );
                   })}
-                </div>
+                </TabsList>
 
-                <div
-                  role="tabpanel"
-                  id={`region-panel-${activeRegion.toLowerCase()}`}
-                  aria-labelledby={`region-tab-${activeRegion.toLowerCase()}`}
-                >
+                <TabsContent key={activeRegion} value={activeRegion}>
                   <BillingDetailsFields
                     instanceKey={`${selectedProduct.id}-${activeRegion}`}
                     region={activeRegion}
@@ -147,8 +136,8 @@ export function BillingStep({
                     disabled={!detailsReady || loadingPricing}
                     amountDescription="Required for every billing cycle you keep on the active region tab."
                   />
-                </div>
-              </div>
+                </TabsContent>
+              </Tabs>
             ) : (
               <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
                 Choose at least one region to open its offer tab.
