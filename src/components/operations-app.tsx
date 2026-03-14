@@ -42,9 +42,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarSeparator,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import {
   Empty,
   EmptyDescription,
@@ -94,56 +92,47 @@ const navigationItems = [
 ] as const;
 
 type RouteMeta = {
-  label: string;
   title: string;
   description: string;
 };
 
 const routeMeta: Record<string, RouteMeta> = {
   "/": {
-    label: "create",
     title: "Create setup",
     description:
       "Create billing options and starting stock in one guided operator flow.",
   },
   "/create": {
-    label: "create",
     title: "Create setup",
     description:
       "Create billing options and starting stock in one guided operator flow.",
   },
   "/catalog": {
-    label: "create",
     title: "Create setup",
     description:
       "Create billing options and starting stock in one guided operator flow.",
   },
   "/view": {
-    label: "view",
     title: "View created items",
     description:
       "Browse the billing options, inventory pools, and recent activity already in the system.",
   },
   "/view/billing-options": {
-    label: "view",
     title: "All billing options",
     description:
       "Search and inspect every billing option that has already been created.",
   },
   "/view/inventory-pools": {
-    label: "view",
     title: "All inventory pools",
     description:
       "Search and inspect every tracked inventory pool across regions.",
   },
   "/inventory": {
-    label: "view",
     title: "View created items",
     description:
       "Browse the billing options, inventory pools, and recent activity already in the system.",
   },
   "/audit": {
-    label: "audit",
     title: "Audit history",
     description: "Review the latest inventory-affecting events and actors.",
   },
@@ -152,7 +141,6 @@ const routeMeta: Record<string, RouteMeta> = {
 function getRouteMeta(pathname: string): RouteMeta {
   return (
     routeMeta[pathname] ?? {
-      label: "create",
       title: "Create setup",
       description:
         "Create billing options and starting stock in one guided operator flow.",
@@ -315,15 +303,11 @@ export function OperationsApp() {
       </Sidebar>
 
       <SidebarInset className="min-h-screen bg-background">
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-4 py-5 backdrop-blur md:px-6">
           <div className="flex items-center gap-3">
-            <SidebarTrigger className="shadow-none" />
-            <Separator orientation="vertical" className="h-5" />
             <div className="flex flex-col gap-0.5">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {currentMeta.label}
-              </span>
-              <h1 className="text-lg font-semibold">{currentMeta.title}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{currentMeta.title}</h1>
+              <p className="text-sm text-muted-foreground">{currentMeta.description}</p>
             </div>
           </div>
 
@@ -342,13 +326,6 @@ export function OperationsApp() {
         </header>
 
         <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6">
-          <Card className="shadow-none">
-            <CardHeader>
-              <CardTitle>{currentMeta.title}</CardTitle>
-              <CardDescription>{currentMeta.description}</CardDescription>
-            </CardHeader>
-          </Card>
-
           <Routes>
             <Route
               path="/"
