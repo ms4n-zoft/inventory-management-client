@@ -50,6 +50,8 @@ export function BillingDetailsFields({
   disabled?: boolean;
   amountDescription: string;
 }) {
+  const unlimitedSelected = maximumUnits.length === 0;
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field>
@@ -157,10 +159,11 @@ export function BillingDetailsFields({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant={maximumUnits ? "outline" : "secondary"}
+              variant={unlimitedSelected ? "secondary" : "outline"}
+              aria-pressed={unlimitedSelected}
               onClick={() => onMaximumUnitsChange("")}
               disabled={disabled}
-              className="shrink-0"
+              className="min-h-11 shrink-0 px-4 aria-pressed:ring-4 aria-pressed:ring-green-500/50 aria-pressed:shadow-md aria-pressed:font-semibold transition-all"
             >
               Unlimited
             </Button>
@@ -175,6 +178,7 @@ export function BillingDetailsFields({
               }
               placeholder="e.g. 500"
               disabled={disabled}
+              className="flex-1"
             />
           </div>
           <FieldDescription>
