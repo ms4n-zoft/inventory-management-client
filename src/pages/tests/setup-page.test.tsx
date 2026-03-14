@@ -120,14 +120,8 @@ async function selectComboboxOption(index: number, optionLabel: string) {
 async function toggleRegion(optionLabel: string) {
   const optionPattern = new RegExp(`^${optionLabel}$`, "i");
 
-  if (!screen.queryByRole("option", { name: optionPattern })) {
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /regions/i }));
-    });
-  }
-
   await act(async () => {
-    fireEvent.click(screen.getByRole("option", { name: optionPattern }));
+    fireEvent.click(screen.getByRole("button", { name: optionPattern }));
   });
 }
 
