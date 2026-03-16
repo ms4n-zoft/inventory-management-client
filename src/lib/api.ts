@@ -30,6 +30,57 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function normalizePurchaseConstraints(
+  purchaseConstraints?: ApiPurchaseConstraints,
+): PurchaseConstraints | undefined {
+  if (!purchaseConstraints) {
+    return undefined;
+  }
+
+  const normalized = {
+    ...(purchaseConstraints.minUnits !== undefined
+      ? { minUnits: purchaseConstraints.minUnits }
+      : {}),
+    ...(typeof purchaseConstraints.maxUnits === "number"
+      ? { maxUnits: purchaseConstraints.maxUnits }
+      : {}),
+  };
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function normalizeSku(sku: ApiSku): Sku {
+  return {
+    ...sku,
+    purchaseConstraints: normalizePurchaseConstraints(sku.purchaseConstraints),
+  };
+}
+
+function normalizeCatalogEntryResponse(
+  response: ApiCatalogEntryResponse,
+): CatalogEntryResponse {
+  return {
+    ...response,
+    sku: normalizeSku(response.sku),
+  };
+}
+
+function normalizeSkuCatalogEntry(entry: ApiSkuCatalogEntry): SkuCatalogEntry {
+  return {
+    ...entry,
+    sku: normalizeSku(entry.sku),
+  };
+}
+
+function normalizeDashboardSnapshot(
+  snapshot: ApiDashboardSnapshot,
+): DashboardSnapshot {
+  return {
+    ...snapshot,
+    skus: snapshot.skus.map(normalizeSku),
+  };
+}
+
 export type ProductSearchResult = {
   id: string;
   slug: string;
@@ -56,6 +107,27 @@ export type CatalogEntryResponse = {
   sku: Sku;
 };
 
+type ApiPurchaseConstraints = {
+  minUnits?: number;
+  maxUnits: number | "unlimited";
+};
+
+type ApiSku = Omit<Sku, "purchaseConstraints"> & {
+  purchaseConstraints?: ApiPurchaseConstraints;
+};
+
+type ApiCatalogEntryResponse = Omit<CatalogEntryResponse, "sku"> & {
+  sku: ApiSku;
+};
+
+type ApiDashboardSnapshot = Omit<DashboardSnapshot, "skus"> & {
+  skus: ApiSku[];
+};
+
+type ApiSkuCatalogEntry = Omit<SkuCatalogEntry, "sku"> & {
+  sku: ApiSku;
+};
+
 type SearchApiProductResult = {
   product_name: string;
   company: string;
@@ -75,8 +147,14 @@ type SearchApiResponse = {
 const zoftwareBaseUrl = "https://api.zoftwarehub.com";
 
 export const api = {
-  getDashboard: () => request<DashboardSnapshot>("/api/dashboard"),
-  getSkus: () => request<SkuCatalogEntry[]>("/api/skus"),
+  getDashboard: async () =>
+    normalizeDashboardSnapshot(
+      await request<ApiDashboardSnapshot>("/api/dashboard"),
+    ),
+  getSkus: async () =>
+    (await request<ApiSkuCatalogEntry[]>("/api/skus")).map(
+      normalizeSkuCatalogEntry,
+    ),
   searchProducts: async (
     query: string,
     limit = 6,
@@ -94,11 +172,9 @@ export const api = {
         },
       },
     );
-    const json = (await response
-      .json()
-      .catch(() => ({
-        message: "product search failed",
-      }))) as SearchApiResponse;
+    const json = (await response.json().catch(() => ({
+      message: "product search failed",
+    }))) as SearchApiResponse;
 
     if (!response.ok) {
       throw new Error(json.message ?? "product search failed");
@@ -150,10 +226,10 @@ export const api = {
       activationTimeline?: string;
     };
   }) =>
-    request<CatalogEntryResponse>("/api/catalog/entries", {
+    request<ApiCatalogEntryResponse>("/api/catalog/entries", {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizeCatalogEntryResponse),
   createPlan: (payload: {
     productId: string;
     name: string;
@@ -172,10 +248,10 @@ export const api = {
     purchaseConstraints?: PurchaseConstraints;
     activationTimeline?: string;
   }) =>
-    request<Sku>("/api/skus", {
+    request<ApiSku>("/api/skus", {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizeSku),
   updateSku: (
     skuId: string,
     payload: {
@@ -187,10 +263,10 @@ export const api = {
       activationTimeline?: string;
     },
   ) =>
-    request<Sku>(`/api/skus/${skuId}`, {
+    request<ApiSku>(`/api/skus/${skuId}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
-    }),
+    }).then(normalizeSku),
   createInventoryPool: (payload: { skuId: string; totalQuantity: number }) =>
     request("/api/inventory-pools", {
       method: "POST",
