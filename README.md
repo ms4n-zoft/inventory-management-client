@@ -34,7 +34,7 @@ Copy `.env.example` to `.env.local` and adjust as needed. `.env.local` is ignore
 | --------------------- | ---------------------------------------------------------- | --------------------------------------- |
 | `VITE_API_URL`        | `http://127.0.0.1:4000`                                    | Base URL of the backend API             |
 | `VITE_SEARCH_API_URL` | `https://peko-api-dev-42526110428.asia-southeast1.run.app` | Base URL of the external product search |
-| `VITE_SEARCH_API_KEY` | —                                                          | Partner API key sent in `X-API-Key`     |
+| `SEARCH_API_KEY`      | —                                                          | Partner API key sent in `X-API-Key`     |
 
 ## Pages
 

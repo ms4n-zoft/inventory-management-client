@@ -11,7 +11,7 @@ import type {
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:4000";
 const searchApiBaseUrl = import.meta.env.VITE_SEARCH_API_URL?.trim();
-const searchApiKey = import.meta.env.VITE_SEARCH_API_KEY?.trim();
+const searchApiKey = import.meta.env.SEARCH_API_KEY?.trim();
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {

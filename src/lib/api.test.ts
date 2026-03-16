@@ -9,7 +9,7 @@ describe("api.searchProducts", () => {
 
   it("maps products from the Peko search API", async () => {
     vi.stubEnv("VITE_SEARCH_API_URL", "https://search.example");
-    vi.stubEnv("VITE_SEARCH_API_KEY", "test-api-key");
+    vi.stubEnv("SEARCH_API_KEY", "test-api-key");
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
