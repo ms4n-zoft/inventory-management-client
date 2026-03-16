@@ -66,7 +66,7 @@ export function EditBillingDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {entry && (
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-2xl lg:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit billing</DialogTitle>
             <DialogDescription>
@@ -76,31 +76,33 @@ export function EditBillingDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <BillingDetailsFields
-            instanceKey={entry.sku._id}
-            region={region}
-            onRegionChange={onRegionChange}
-            regionDescription={
-              entry.hasLockedRegion
-                ? "Region is locked after stock exists for this offer."
-                : "Each offer is regional. Choose GCC or INDIA."
-            }
-            regionDisabled={entry.hasLockedRegion}
-            catalogCode={generatedCode}
-            catalogCodeDescription="The code updates automatically from the product, plan, and region."
-            billingCycles={billingCycles}
-            onBillingCyclesChange={onBillingCyclesChange}
-            pricingDetailsByCycle={pricingDetailsByCycle}
-            onPricingDetailsChange={onPricingDetailsChange}
-            minimumUnits={minimumUnits}
-            onMinimumUnitsChange={onMinimumUnitsChange}
-            maximumUnits={maximumUnits}
-            onMaximumUnitsChange={onMaximumUnitsChange}
-            activationTimeline={activationTimeline}
-            onActivationTimelineChange={onActivationTimelineChange}
-            disabled={loading}
-            amountDescription="Keep each billing cycle aligned with the operator-facing MSRP."
-          />
+          <div className="min-h-0 overflow-y-auto pr-1">
+            <BillingDetailsFields
+              instanceKey={entry.sku._id}
+              region={region}
+              onRegionChange={onRegionChange}
+              regionDescription={
+                entry.hasLockedRegion
+                  ? "Region is locked after stock exists for this offer."
+                  : "Each offer is regional. Choose GCC or INDIA."
+              }
+              regionDisabled={entry.hasLockedRegion}
+              catalogCode={generatedCode}
+              catalogCodeDescription="The code updates automatically from the product, plan, and region."
+              billingCycles={billingCycles}
+              onBillingCyclesChange={onBillingCyclesChange}
+              pricingDetailsByCycle={pricingDetailsByCycle}
+              onPricingDetailsChange={onPricingDetailsChange}
+              minimumUnits={minimumUnits}
+              onMinimumUnitsChange={onMinimumUnitsChange}
+              maximumUnits={maximumUnits}
+              onMaximumUnitsChange={onMaximumUnitsChange}
+              activationTimeline={activationTimeline}
+              onActivationTimelineChange={onActivationTimelineChange}
+              disabled={loading}
+              amountDescription="Keep each billing cycle aligned with the operator-facing MSRP."
+            />
+          </div>
 
           <DialogFooter showCloseButton>
             <Button disabled={!canSave || loading} onClick={onSave}>
