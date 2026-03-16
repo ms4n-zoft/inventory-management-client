@@ -200,6 +200,7 @@ function renderViewRoute(
             <ViewWorkspace
               snapshot={snapshotValue}
               loading={false}
+              sales={[]}
               runAction={runAction}
             />
           }

@@ -371,6 +371,7 @@ export function OperationsApp() {
                 <ViewWorkspace
                   snapshot={snapshot}
                   loading={loading}
+                  sales={sales}
                   runAction={runAction}
                 />
               }

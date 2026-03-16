@@ -31,6 +31,7 @@ import type {
   DashboardSnapshot,
   PricingDetails,
   PricingDetailsByCycle,
+  SaleListEntry,
 } from "@/types";
 
 type InventoryDialogTarget = {
@@ -43,6 +44,7 @@ type ViewWorkspaceContextValue = {
   loading: boolean;
   setupEntries: ViewSetupEntry[];
   inventoryRows: InventoryRowEntry[];
+  todaySalesCount: number;
   openBillingDialog: (skuId: string) => void;
   openInventoryDialog: (input: InventoryDialogTarget) => void;
 };
@@ -50,10 +52,12 @@ type ViewWorkspaceContextValue = {
 export function ViewWorkspace({
   snapshot,
   loading,
+  sales,
   runAction,
 }: {
   snapshot: DashboardSnapshot;
   loading: boolean;
+  sales: SaleListEntry[];
   runAction: ActionRunner;
 }) {
   const [billingDialogSkuId, setBillingDialogSkuId] = useState<string | null>(
@@ -78,6 +82,11 @@ export function ViewWorkspace({
     [snapshot],
   );
   const inventoryRows = useMemo(() => buildInventoryRows(snapshot), [snapshot]);
+  const todaySalesCount = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return sales.filter((entry) => entry.sale.createdAt.startsWith(today))
+      .length;
+  }, [sales]);
 
   const activeBillingEntry = useMemo(
     () =>
@@ -257,6 +266,7 @@ export function ViewWorkspace({
           loading,
           setupEntries,
           inventoryRows,
+          todaySalesCount,
           openBillingDialog: setBillingDialogSkuId,
           openInventoryDialog: setInventoryDialogTarget,
         }}

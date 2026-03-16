@@ -12,6 +12,7 @@ export function ViewPage() {
     loading,
     setupEntries,
     inventoryRows,
+    todaySalesCount,
     openBillingDialog,
     openInventoryDialog,
   } = useViewWorkspace();
@@ -34,7 +35,7 @@ export function ViewPage() {
         productCount={snapshot.products.length}
         billingOptionCount={snapshot.skus.length}
         inventoryPoolCount={inventoryRows.length}
-        auditEventCount={snapshot.auditLogs.length}
+        todaySalesCount={todaySalesCount}
       />
 
       <LowStockWatchCard entries={lowAvailability} />
