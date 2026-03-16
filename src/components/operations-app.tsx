@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import {
   Link,
   Navigate,
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { buildInventoryRows } from "@/lib/view-data";
 import type { DashboardSnapshot } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -209,6 +210,10 @@ export function OperationsApp() {
   };
 
   const currentMeta = getRouteMeta(location.pathname);
+  const trackedPoolCount = useMemo(
+    () => buildInventoryRows(snapshot).length,
+    [snapshot],
+  );
 
   return (
     <SidebarProvider>
@@ -293,7 +298,7 @@ export function OperationsApp() {
             <CardContent className="pt-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Tracked pools</span>
-                <span>{snapshot.inventoryPools.length}</span>
+                <span>{trackedPoolCount}</span>
               </div>
             </CardContent>
           </Card>
@@ -316,9 +321,7 @@ export function OperationsApp() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Badge variant="outline">
-              {snapshot.inventoryPools.length} pools tracked
-            </Badge>
+            <Badge variant="outline">{trackedPoolCount} pools tracked</Badge>
             <Button
               variant="outline"
               onClick={() => void refresh("Inventory data refreshed.")}

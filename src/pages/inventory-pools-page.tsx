@@ -5,6 +5,7 @@ import { BoxesIcon } from "lucide-react";
 import { InventoryPoolsCard } from "@/components/view-page/inventory-pools-card";
 import { ViewSearchCard } from "@/components/view-page/view-search-card";
 import { useViewWorkspace } from "@/components/view-page/view-workspace";
+import { isStockTrackingEnabled } from "@/lib/billing-option";
 import {
   Empty,
   EmptyDescription,
@@ -14,8 +15,12 @@ import {
 } from "@/components/ui/empty";
 
 export function InventoryPoolsPage() {
-  const { inventoryRows, openInventoryDialog } = useViewWorkspace();
+  const { inventoryRows, openInventoryDialog, setupEntries } =
+    useViewWorkspace();
   const [query, setQuery] = useState("");
+  const unlimitedInventoryOfferCount = setupEntries.filter(
+    (entry) => !isStockTrackingEnabled(entry.sku.purchaseConstraints),
+  ).length;
 
   const search = useMemo(
     () =>
@@ -44,7 +49,7 @@ export function InventoryPoolsPage() {
     <>
       <ViewSearchCard
         title="Browse inventory pools"
-        description="Search every tracked stock pool by product, plan, billing code, or region."
+        description="Search every tracked stock pool by product, plan, billing code, or region. Offers with unlimited inventory do not create pools."
         placeholder="Search by product, plan, code, or region"
         query={query}
         onQueryChange={setQuery}
@@ -59,16 +64,29 @@ export function InventoryPoolsPage() {
             <EmptyMedia variant="icon">
               <BoxesIcon />
             </EmptyMedia>
-            <EmptyTitle>No inventory pools matched</EmptyTitle>
+            <EmptyTitle>
+              {inventoryRows.length === 0 &&
+              unlimitedInventoryOfferCount > 0 &&
+              !query.trim()
+                ? "No tracked pools"
+                : "No inventory pools matched"}
+            </EmptyTitle>
             <EmptyDescription>
-              Try a broader search term or return to the view overview.
+              {inventoryRows.length === 0 &&
+              unlimitedInventoryOfferCount > 0 &&
+              !query.trim()
+                ? unlimitedInventoryOfferCount === 1
+                  ? "1 billing option currently uses unlimited inventory, so no tracked pool is needed."
+                  : `${unlimitedInventoryOfferCount} billing options currently use unlimited inventory, so no tracked pools are needed.`
+                : "Try a broader search term or return to the view overview."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
         <InventoryPoolsCard
           rows={filteredRows}
-          description={`Showing ${filteredRows.length} of ${inventoryRows.length} inventory pool${inventoryRows.length === 1 ? "" : "s"}.`}
+          description={`Showing ${filteredRows.length} of ${inventoryRows.length} tracked pool${inventoryRows.length === 1 ? "" : "s"}.`}
+          unlimitedOfferCount={unlimitedInventoryOfferCount}
           onEditInventory={openInventoryDialog}
         />
       )}

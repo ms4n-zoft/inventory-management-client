@@ -24,9 +24,12 @@ export function BillingOptionTile({
   onEditInventory: (input: { skuId: string; poolId?: string }) => void;
 }) {
   const pricingOptions = entry.sku.pricingOptions ?? [];
+  const minimumUnits = entry.sku.purchaseConstraints?.minUnits;
+  const maximumUnits = entry.sku.purchaseConstraints?.maxUnits;
   const stockTrackingEnabled = isStockTrackingEnabled(
     entry.sku.purchaseConstraints,
   );
+  const showUnitCards = maximumUnits === undefined;
   const activationTimeline = formatActivationTimelineValue(
     entry.sku.activationTimeline,
   );
@@ -65,34 +68,53 @@ export function BillingOptionTile({
           </p>
         ))}
         <p>{formatPurchaseConstraints(entry.sku)}</p>
-        {activationTimeline ? <p>{activationTimeline}</p> : null}
+        {activationTimeline ? (
+          <p>Activation timeline: {activationTimeline}</p>
+        ) : null}
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border px-3 py-3">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Stock tracking
-          </p>
-          <p className="mt-1 text-sm font-medium">
-            {!stockTrackingEnabled
-              ? "Unlimited"
-              : entry.pools.length > 0
-                ? `${entry.trackedQuantity} tracked`
-                : "Not tracked yet"}
-          </p>
-        </div>
-        <div className="rounded-lg border px-3 py-3">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Available now
-          </p>
-          <p className="mt-1 text-sm font-medium">
-            {!stockTrackingEnabled
-              ? "Unlimited"
-              : entry.pools.length > 0
-                ? `${entry.availableQuantity} available`
-                : "No pool yet"}
-          </p>
-        </div>
+        {showUnitCards ? (
+          <>
+            <div className="rounded-lg border px-3 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Minimum units
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {minimumUnits?.toString() ?? "Not set"}
+              </p>
+            </div>
+            <div className="rounded-lg border px-3 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Maximum units
+              </p>
+              <p className="mt-1 text-sm font-medium">Unlimited</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-lg border px-3 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Stock tracking
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {entry.pools.length > 0
+                  ? `${entry.trackedQuantity} tracked`
+                  : "Not tracked yet"}
+              </p>
+            </div>
+            <div className="rounded-lg border px-3 py-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Available now
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {entry.pools.length > 0
+                  ? `${entry.availableQuantity} available`
+                  : "No pool yet"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
