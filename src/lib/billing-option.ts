@@ -25,6 +25,7 @@ const sharedPricingFields: Array<
 > = ["currency", "entity"];
 
 const preferredRegionOrder: Region[] = ["GCC", "INDIA"];
+const defaultChargedPer = "user";
 
 export const billingCycleOptions: Array<{
   value: BillingCycle;
@@ -43,6 +44,11 @@ export const commonRegionOptions = preferredRegionOrder.map((region) => ({
 export const commonCurrencyOptions = ["USD", "INR"].map((currency) => ({
   value: currency,
   label: currency,
+}));
+
+export const commonChargedPerOptions = [defaultChargedPer].map((entity) => ({
+  value: entity,
+  label: entity,
 }));
 
 export function orderBillingCycles(
@@ -102,7 +108,7 @@ export function createEmptyPricingDetails(): PricingDetails {
   return {
     amount: emptyPricePerUnit.amount,
     currency: emptyPricePerUnit.currency,
-    entity: emptyPricePerUnit.entity ?? "",
+    entity: emptyPricePerUnit.entity ?? defaultChargedPer,
     ratePeriod: emptyPricePerUnit.ratePeriod ?? "",
   };
 }
@@ -166,7 +172,7 @@ function createPricingDetailsForCycle(
   return {
     amount: amountFromSeedForCycle(billingCycle, seed),
     currency: seed?.currency ?? "USD",
-    entity: seed?.entity ?? "",
+    entity: seed?.entity?.trim() || defaultChargedPer,
     ratePeriod:
       (seed?.billingCycle === billingCycle ? seed.ratePeriod : undefined) ??
       (seed ? defaultRatePeriodsByCycle[billingCycle] : ""),
@@ -316,7 +322,7 @@ export function pricingDetailsFromPricingOptions(
   return {
     amount: primaryPricingOption.amount,
     currency: primaryPricingOption.currency,
-    entity: primaryPricingOption.entity ?? "",
+    entity: primaryPricingOption.entity?.trim() || defaultChargedPer,
     ratePeriod: primaryPricingOption.ratePeriod ?? "",
   };
 }
@@ -381,7 +387,7 @@ export function createEmptyPricePerUnit(
     billingCycle,
     amount: "",
     currency: "USD",
-    entity: "",
+    entity: defaultChargedPer,
     ratePeriod: "",
   };
 }
@@ -394,7 +400,7 @@ export function pricePerUnitFromPlan(plan: ProductPricingPlan): PricePerUnit {
         ? "0"
         : (plan.amount ?? ""),
     currency: plan.currency ?? "USD",
-    entity: plan.entity ?? "",
+    entity: plan.entity?.trim() || defaultChargedPer,
     ratePeriod: plan.period ?? "",
   };
 }

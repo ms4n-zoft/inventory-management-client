@@ -263,9 +263,9 @@ describe("setup page", () => {
       "true",
     );
     expect(getPricingAmountInput("yearly")).toHaveValue("216");
-    expect(screen.getByRole("textbox", { name: /^charged per$/i })).toHaveValue(
-      "user",
-    );
+    expect(
+      screen.getByRole("combobox", { name: /^charged per$/i }),
+    ).toHaveTextContent("user");
 
     await act(async () => {
       fireEvent.change(getPricingAmountInput("monthly"), {
@@ -581,7 +581,7 @@ describe("setup page", () => {
             billingCycle: "monthly",
             amount: "45",
             currency: "USD",
-            entity: undefined,
+            entity: "user",
             ratePeriod: undefined,
           },
         ],

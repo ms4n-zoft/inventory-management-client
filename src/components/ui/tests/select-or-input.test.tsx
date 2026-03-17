@@ -12,14 +12,17 @@ const currencyOptions = ["USD", "INR"].map((currency) => ({
 function ControlledSelectOrInput({
   initialValue = "USD",
   onChange,
+  ariaLabel,
 }: {
   initialValue?: string;
   onChange?: (value: string) => void;
+  ariaLabel?: string;
 }) {
   const [value, setValue] = useState(initialValue);
 
   return (
     <SelectOrInput
+      aria-label={ariaLabel}
       options={currencyOptions}
       value={value}
       onChange={(nextValue) => {
@@ -55,6 +58,26 @@ describe("SelectOrInput", () => {
 
     expect(onChange).toHaveBeenCalledWith("");
     expect(screen.getByPlaceholderText(/e\.g\. aed/i)).toBeInTheDocument();
+  });
+
+  it("keeps the same accessible name in select and custom modes", async () => {
+    render(<ControlledSelectOrInput ariaLabel="Currency" />);
+
+    expect(
+      screen.getByRole("combobox", { name: /^currency$/i }),
+    ).toHaveTextContent("USD");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: /^currency$/i }));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText(/enter custom value/i));
+    });
+
+    expect(screen.getByRole("textbox", { name: /^currency$/i })).toHaveValue(
+      "",
+    );
   });
 
   it("follows external value changes between preset and custom values", () => {

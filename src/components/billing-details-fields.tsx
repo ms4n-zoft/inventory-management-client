@@ -4,6 +4,7 @@ import type {
   PricingDetailsByCycle,
 } from "@/types";
 import {
+  commonChargedPerOptions,
   commonCurrencyOptions,
   commonRegionOptions,
   orderBillingCycles,
@@ -189,17 +190,20 @@ export function BillingDetailsFields({
 
               <Field>
                 <FieldLabel>Charged per</FieldLabel>
-                <Input
+                <SelectOrInput
+                  key={`${instanceKey}-shared-charged-per`}
                   aria-label="Charged per"
+                  options={commonChargedPerOptions}
                   value={sharedPricingDetails.entity}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     onPricingDetailsChange(
                       selectedBillingCycles[0] ?? "monthly",
                       "entity",
-                      event.target.value,
+                      value,
                     )
                   }
-                  placeholder="e.g. user"
+                  placeholder="Select what is charged"
+                  inputPlaceholder="e.g. license"
                   disabled={disabled}
                 />
                 <FieldDescription>

@@ -161,9 +161,9 @@ describe("BillingDetailsFields", () => {
     expect(
       screen.queryByRole("textbox", { name: /monthly charged per/i }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: /^charged per$/i })).toHaveValue(
-      "user",
-    );
+    expect(
+      screen.getByRole("combobox", { name: /^charged per$/i }),
+    ).toHaveTextContent("user");
 
     fireEvent.change(
       screen.getByRole("textbox", { name: /monthly price amount/i }),

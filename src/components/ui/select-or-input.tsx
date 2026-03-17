@@ -27,6 +27,7 @@ interface SelectOrInputProps {
   placeholder?: string;
   inputPlaceholder?: string;
   disabled?: boolean;
+  "aria-label"?: string;
 }
 
 export function SelectOrInput({
@@ -36,6 +37,7 @@ export function SelectOrInput({
   placeholder = "Select…",
   inputPlaceholder = "Enter a custom value",
   disabled,
+  "aria-label": ariaLabel,
 }: SelectOrInputProps) {
   const inOptions = options.some((o) => o.value === value);
   const [mode, setMode] = useState<"select" | "custom">(
@@ -53,6 +55,7 @@ export function SelectOrInput({
     return (
       <div className="flex gap-2">
         <Input
+          aria-label={ariaLabel}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={inputPlaceholder}
@@ -91,7 +94,7 @@ export function SelectOrInput({
       }}
       disabled={disabled}
     >
-      <SelectTrigger>
+      <SelectTrigger aria-label={ariaLabel}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
