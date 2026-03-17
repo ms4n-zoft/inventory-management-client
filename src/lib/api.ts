@@ -1,4 +1,5 @@
 import type {
+  AuthUser,
   DashboardSnapshot,
   Plan,
   PricePerUnit,
@@ -8,16 +9,47 @@ import type {
   Sku,
   SkuCatalogEntry,
 } from "../types";
+import { dispatchAuthExpired, getAccessToken } from "./auth";
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:4000";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+type RequestOptions = {
+  auth?: boolean;
+};
+
+function buildHeaders(
+  initHeaders?: HeadersInit,
+  options?: RequestOptions,
+): Record<string, string> {
+  const headers = new Headers(initHeaders);
+
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  if (options?.auth !== false) {
+    const token = getAccessToken();
+    if (token) {
+      headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  return Object.fromEntries(headers.entries());
+}
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options?: RequestOptions,
+): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: {
-      "content-type": "application/json",
-    },
     ...init,
+    headers: buildHeaders(init?.headers, options),
   });
+
+  if (response.status === 401) {
+    dispatchAuthExpired();
+  }
 
   if (!response.ok) {
     const payload = (await response
@@ -106,6 +138,16 @@ export type CatalogEntryResponse = {
   sku: Sku;
 };
 
+type AuthLoginResponse = {
+  token: string;
+  user: AuthUser;
+};
+
+type AuthMeResponse = {
+  authType: "user";
+  user: AuthUser;
+};
+
 type ApiPurchaseConstraints = {
   minUnits?: number;
   maxUnits: number | "unlimited";
@@ -130,6 +172,16 @@ type ApiSkuCatalogEntry = Omit<SkuCatalogEntry, "sku"> & {
 const zoftwareBaseUrl = "https://api.zoftwarehub.com";
 
 export const api = {
+  login: (payload: { email_id: string; password: string }) =>
+    request<AuthLoginResponse>(
+      "/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      { auth: false },
+    ),
+  getCurrentUser: async () => (await request<AuthMeResponse>("/auth/me")).user,
   getDashboard: async () =>
     normalizeDashboardSnapshot(
       await request<ApiDashboardSnapshot>("/api/dashboard"),

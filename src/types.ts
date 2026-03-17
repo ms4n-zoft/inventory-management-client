@@ -119,3 +119,18 @@ export type SkuCatalogEntry = {
   plan: Plan;
   product: Product;
 };
+
+export type AuthUser = {
+  _id: string;
+  email_id: string;
+  first_name: string;
+  last_name: string;
+  user_access: string;
+  company?: string;
+  company_id?: string;
+};
+
+export type AuthSession = {
+  token: string;
+  user: AuthUser;
+};

@@ -2,6 +2,8 @@
 
 React operations dashboard for the inventory management system. Built with Vite, TypeScript, Tailwind CSS, and shadcn/ui components.
 
+The frontend now uses a login screen and stores the shared inventory session token in browser session storage, matching the admin app pattern.
+
 ## Tech stack
 
 - **Framework**: React 19

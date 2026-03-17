@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../app";
+import { setStoredAuthSession } from "../lib/auth";
 
 function getSidebarLink(href: string) {
   return screen
@@ -12,6 +13,17 @@ function getSidebarLink(href: string) {
 describe("app", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    sessionStorage.clear();
+    setStoredAuthSession({
+      token: "inventory-token",
+      user: {
+        _id: "user-1",
+        email_id: "ops@example.com",
+        first_name: "Inventory",
+        last_name: "Operator",
+        user_access: "INVENTORY",
+      },
+    });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: string | Request | URL) => {
@@ -21,6 +33,22 @@ describe("app", () => {
             : input instanceof URL
               ? input.toString()
               : input.url;
+
+        if (url.endsWith("/auth/me")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              authType: "user",
+              user: {
+                _id: "user-1",
+                email_id: "ops@example.com",
+                first_name: "Inventory",
+                last_name: "Operator",
+                user_access: "INVENTORY",
+              },
+            }),
+          });
+        }
 
         if (url.endsWith("/api/sales")) {
           return Promise.resolve({
@@ -89,5 +117,17 @@ describe("app", () => {
 
     expect(screen.getByText(/browse sales/i)).toBeInTheDocument();
     expect(getSidebarLink("/sales")).toHaveAttribute("data-active", "true");
+  });
+
+  it("redirects guests to the login page", async () => {
+    sessionStorage.clear();
+    window.history.pushState({}, "", "/audit");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: /sign in/i }),
+      ).toBeInTheDocument();
+    });
   });
 });

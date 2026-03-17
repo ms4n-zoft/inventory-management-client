@@ -10,12 +10,14 @@ import {
 import {
   ArrowUpRightIcon,
   BoxesIcon,
+  LogOutIcon,
   PackagePlusIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
   ShoppingCartIcon,
 } from "lucide-react";
 
+import { useAuth } from "@/components/auth/auth-provider";
 import { api } from "@/lib/api";
 import { buildInventoryRows } from "@/lib/view-data";
 import type { DashboardSnapshot, SaleListEntry } from "@/types";
@@ -170,6 +172,7 @@ function isNavigationItemActive(pathname: string, href: string) {
 }
 
 export function OperationsApp() {
+  const { logout, session } = useAuth();
   const location = useLocation();
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(emptySnapshot);
   const [sales, setSales] = useState<SaleListEntry[]>(emptySales);
@@ -317,10 +320,26 @@ export function OperationsApp() {
               </CardAction>
             </CardHeader>
             <CardContent className="pt-3">
+              <div className="mb-3 space-y-0.5">
+                <p className="truncate text-sm font-medium">
+                  {session?.user.first_name} {session?.user.last_name}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {session?.user.user_access}
+                </p>
+              </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Tracked pools</span>
                 <span>{trackedPoolCount}</span>
               </div>
+              <Button
+                variant="ghost"
+                className="mt-3 w-full justify-start px-2"
+                onClick={logout}
+              >
+                <LogOutIcon data-icon="inline-start" />
+                Sign out
+              </Button>
             </CardContent>
           </Card>
         </SidebarFooter>
