@@ -11,6 +11,11 @@ import type {
   SkuCatalogEntry,
 } from "../types";
 import { dispatchAuthExpired, getAccessToken } from "./auth";
+import {
+  normalizeDiscountFields,
+  normalizeMoneyAmount,
+  normalizePercentageValue,
+} from "./decimal";
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:4000";
 
@@ -66,7 +71,7 @@ async function request<T>(
 }
 
 function normalizePurchaseConstraints(
-  purchaseConstraints?: ApiPurchaseConstraints,
+  purchaseConstraints?: ApiPurchaseConstraints | PurchaseConstraints,
 ): PurchaseConstraints | undefined {
   if (!purchaseConstraints) {
     return undefined;
@@ -84,9 +89,49 @@ function normalizePurchaseConstraints(
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
-function normalizeSku(sku: ApiSku): Sku {
+function normalizePricingOption(pricingOption: PricePerUnit): PricePerUnit {
+  const normalizedAmount =
+    normalizeMoneyAmount(pricingOption.amount) ?? pricingOption.amount.trim();
+
+  return {
+    ...pricingOption,
+    amount: normalizedAmount,
+    currency: pricingOption.currency.trim().toUpperCase(),
+    entity: pricingOption.entity?.trim() || undefined,
+    ratePeriod: pricingOption.ratePeriod?.trim() || undefined,
+    ...normalizeDiscountFields({
+      amount: normalizedAmount,
+      discountPercentage:
+        normalizePercentageValue(pricingOption.discountPercentage) ??
+        pricingOption.discountPercentage,
+      discountedAmount:
+        normalizeMoneyAmount(pricingOption.discountedAmount) ??
+        pricingOption.discountedAmount,
+    }),
+  };
+}
+
+function normalizeSaleListEntry(entry: SaleListEntry): SaleListEntry {
+  return {
+    ...entry,
+    sku: normalizeSku(entry.sku),
+    sale: {
+      ...entry.sale,
+      payment: {
+        ...entry.sale.payment,
+        amount:
+          normalizeMoneyAmount(entry.sale.payment.amount) ??
+          entry.sale.payment.amount,
+        currency: entry.sale.payment.currency.trim().toUpperCase(),
+      },
+    },
+  };
+}
+
+function normalizeSku(sku: ApiSku | Sku): Sku {
   return {
     ...sku,
+    pricingOptions: sku.pricingOptions.map(normalizePricingOption),
     purchaseConstraints: normalizePurchaseConstraints(sku.purchaseConstraints),
   };
 }
@@ -227,7 +272,8 @@ export const api = {
     normalizeDashboardSnapshot(
       await request<ApiDashboardSnapshot>("/api/dashboard"),
     ),
-  getSales: async () => request<SaleListEntry[]>("/api/sales"),
+  getSales: async () =>
+    (await request<SaleListEntry[]>("/api/sales")).map(normalizeSaleListEntry),
   getSkus: async () =>
     (await request<ApiSkuCatalogEntry[]>("/api/skus")).map(
       normalizeSkuCatalogEntry,
@@ -251,9 +297,12 @@ export const api = {
     };
     const plans = (json.data?.pricing ?? []).filter((p) => p.plan?.trim());
     // deduplicate by plan name
-    return plans.filter(
-      (p, i) => plans.findIndex((x) => x.plan === p.plan) === i,
-    );
+    return plans
+      .filter((p, i) => plans.findIndex((x) => x.plan === p.plan) === i)
+      .map((plan) => ({
+        ...plan,
+        amount: normalizeMoneyAmount(plan.amount) ?? plan.amount,
+      }));
   },
   addCatalogEntry: (payload: {
     product: {

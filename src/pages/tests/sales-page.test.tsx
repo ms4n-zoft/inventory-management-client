@@ -94,7 +94,7 @@ const sales: SaleListEntry[] = [
       payment: {
         provider: "checkout",
         transactionId: "txn-2001",
-        amount: "36.00",
+        amount: "36.126",
         currency: "USD",
         status: "captured",
       },
@@ -148,6 +148,7 @@ describe("sales page", () => {
     expect(screen.getByText("Slack")).toBeInTheDocument();
     expect(screen.getByText(/ayesha@example.com/i)).toBeInTheDocument();
     expect(screen.getByText(/gatewayOrderId: gw-1001/i)).toBeInTheDocument();
+    expect(screen.getByText(/36\.13 usd/i)).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.change(

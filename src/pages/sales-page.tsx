@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { normalizeMoneyAmount } from "@/lib/decimal";
 import type { SaleListEntry } from "@/types";
 
 function formatRecord(record?: Record<string, string>) {
@@ -192,7 +193,9 @@ export function SalesPage({
                         <div className="flex min-w-52 flex-col gap-1.5">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">
-                              {entry.sale.payment.amount}{" "}
+                              {normalizeMoneyAmount(
+                                entry.sale.payment.amount,
+                              ) ?? entry.sale.payment.amount}{" "}
                               {entry.sale.payment.currency}
                             </span>
                             <Badge variant="outline">

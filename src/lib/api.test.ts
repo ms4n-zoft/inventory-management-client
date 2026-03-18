@@ -156,10 +156,12 @@ describe("api sku response normalization", () => {
             pricingOptions: [
               {
                 billingCycle: "monthly",
-                amount: "3060",
+                amount: "100.555",
                 currency: "INR",
                 entity: "user",
                 ratePeriod: "month",
+                discountPercentage: "15.129",
+                discountedAmount: "85.355",
               },
             ],
             purchaseConstraints: {
@@ -206,10 +208,12 @@ describe("api sku response normalization", () => {
           pricingOptions: [
             {
               billingCycle: "monthly",
-              amount: "3060",
+              amount: "100.56",
               currency: "INR",
               entity: "user",
               ratePeriod: "month",
+              discountPercentage: "15.13",
+              discountedAmount: "85.35",
             },
           ],
           purchaseConstraints: {
@@ -256,10 +260,11 @@ describe("api sku response normalization", () => {
             pricingOptions: [
               {
                 billingCycle: "monthly",
-                amount: "3060",
+                amount: "100.555",
                 currency: "INR",
                 entity: "user",
                 ratePeriod: "month",
+                discountedAmount: "90.443",
               },
             ],
             purchaseConstraints: {
@@ -284,6 +289,17 @@ describe("api sku response normalization", () => {
     expect(results.skus[0]!.purchaseConstraints).toEqual({
       minUnits: 1,
     });
+    expect(results.skus[0]!.pricingOptions).toEqual([
+      {
+        billingCycle: "monthly",
+        amount: "100.56",
+        currency: "INR",
+        entity: "user",
+        ratePeriod: "month",
+        discountPercentage: "10.06",
+        discountedAmount: "90.44",
+      },
+    ]);
   });
 
   it("loads sales records from the sales endpoint", async () => {
@@ -311,8 +327,8 @@ describe("api sku response normalization", () => {
             payment: {
               provider: "stripe",
               transactionId: "txn-1001",
-              amount: "59.00",
-              currency: "USD",
+              amount: "59.009",
+              currency: "usd",
               status: "captured",
               metadata: {
                 gatewayOrderId: "gw-1001",
@@ -377,6 +393,10 @@ describe("api sku response normalization", () => {
         sale: expect.objectContaining({
           skuCode: "pipedrive-starter-pack-india",
           quantity: 2,
+          payment: expect.objectContaining({
+            amount: "59.01",
+            currency: "USD",
+          }),
         }),
         product: expect.objectContaining({ name: "Pipedrive" }),
       }),
