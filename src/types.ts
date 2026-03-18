@@ -25,6 +25,8 @@ export type PricePerUnit = {
   currency: string;
   entity?: string;
   ratePeriod?: string;
+  discountPercentage?: string;
+  discountedAmount?: string;
 };
 
 export type PricingDetails = {
@@ -32,6 +34,8 @@ export type PricingDetails = {
   currency: string;
   entity: string;
   ratePeriod: string;
+  discountPercentage: string;
+  discountedAmount: string;
 };
 
 export type PricingDetailsByCycle = Record<BillingCycle, PricingDetails>;

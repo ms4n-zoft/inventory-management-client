@@ -75,22 +75,87 @@ export function BillingDetailsFields({
     billingCycle: BillingCycle,
     label: string,
     description: string,
-  ) => (
-    <Field key={billingCycle}>
-      <FieldLabel>{label}</FieldLabel>
-      <Input
-        aria-label={label}
-        value={pricingDetailsByCycle[billingCycle].amount}
-        onChange={(event) =>
-          onPricingDetailsChange(billingCycle, "amount", event.target.value)
-        }
-        placeholder="e.g. 12"
-        inputMode="decimal"
-        disabled={disabled}
-      />
-      <FieldDescription>{description}</FieldDescription>
-    </Field>
-  );
+  ) => {
+    const pricingDetails = pricingDetailsByCycle[billingCycle];
+    const billingCycleLabel = formatBillingCycleLabel(billingCycle);
+
+    return (
+      <div
+        key={billingCycle}
+        className="rounded-lg border bg-background/60 p-4 sm:col-span-2"
+      >
+        <div className="mb-4 space-y-1">
+          <p className="font-medium">{label}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Field>
+            <FieldLabel>{label}</FieldLabel>
+            <Input
+              aria-label={label}
+              value={pricingDetails.amount}
+              onChange={(event) =>
+                onPricingDetailsChange(
+                  billingCycle,
+                  "amount",
+                  event.target.value,
+                )
+              }
+              placeholder="e.g. 12"
+              inputMode="decimal"
+              disabled={disabled}
+            />
+            <FieldDescription>List price before discount.</FieldDescription>
+          </Field>
+
+          <Field>
+            <FieldLabel>Discount percentage</FieldLabel>
+            <Input
+              aria-label={`${billingCycleLabel} discount percentage`}
+              value={pricingDetails.discountPercentage}
+              onChange={(event) =>
+                onPricingDetailsChange(
+                  billingCycle,
+                  "discountPercentage",
+                  event.target.value,
+                )
+              }
+              placeholder="e.g. 20"
+              inputMode="decimal"
+              disabled={disabled}
+            />
+            <FieldDescription>
+              Optional. Enter the percent off for this billing cycle.
+            </FieldDescription>
+          </Field>
+
+          <Field>
+            <FieldLabel>Discounted price</FieldLabel>
+            <Input
+              aria-label={`${billingCycleLabel} discounted price`}
+              value={pricingDetails.discountedAmount}
+              onChange={(event) =>
+                onPricingDetailsChange(
+                  billingCycle,
+                  "discountedAmount",
+                  event.target.value,
+                )
+              }
+              placeholder="e.g. 9.99"
+              inputMode="decimal"
+              disabled={disabled}
+              className="font-medium"
+            />
+            <FieldDescription>
+              Enter either this or the discount percentage. The other field
+              updates automatically.
+            </FieldDescription>
+          </Field>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -131,7 +196,8 @@ export function BillingDetailsFields({
             />
             <FieldDescription>
               Use separate amounts per selected cycle, with one shared currency
-              and charged-per value.
+              and charged-per value. Decimal inputs are rounded to at most 2
+              places.
             </FieldDescription>
           </Field>
 

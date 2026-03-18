@@ -16,12 +16,22 @@ const pricingOption = (
   currency = "USD",
   entity = "user",
   ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
+  discount?: {
+    discountPercentage?: string;
+    discountedAmount?: string;
+  },
 ): PricePerUnit => ({
   billingCycle,
   amount,
   currency,
   entity,
   ratePeriod,
+  ...(discount?.discountPercentage !== undefined
+    ? { discountPercentage: discount.discountPercentage }
+    : {}),
+  ...(discount?.discountedAmount !== undefined
+    ? { discountedAmount: discount.discountedAmount }
+    : {}),
 });
 
 const snapshot: DashboardSnapshot = {
@@ -244,7 +254,10 @@ describe("setup page model", () => {
         {
           ...snapshot.skus[0]!,
           pricingOptions: [
-            pricingOption("monthly", "18"),
+            pricingOption("monthly", "18", "USD", "user", "monthly", {
+              discountPercentage: "10",
+              discountedAmount: "16.2",
+            }),
             pricingOption("yearly", "180", "USD", "user", "year"),
           ],
         },
@@ -254,6 +267,8 @@ describe("setup page model", () => {
 
     expect(draft.billingCycles).toEqual(["monthly", "yearly"]);
     expect(draft.pricingDetailsByCycle.monthly.amount).toBe("18");
+    expect(draft.pricingDetailsByCycle.monthly.discountPercentage).toBe("10");
+    expect(draft.pricingDetailsByCycle.monthly.discountedAmount).toBe("16.2");
     expect(draft.pricingDetailsByCycle.yearly.amount).toBe("180");
 
     const derived = buildSetupPageDerivedState({
@@ -283,7 +298,10 @@ describe("setup page model", () => {
     });
 
     expect(derived.activeRegionEntry?.pricingOptions).toEqual([
-      pricingOption("monthly", "18"),
+      pricingOption("monthly", "18", "USD", "user", "monthly", {
+        discountPercentage: "10",
+        discountedAmount: "16.2",
+      }),
       pricingOption("yearly", "180", "USD", "user", "year"),
     ]);
   });

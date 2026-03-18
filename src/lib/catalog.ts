@@ -6,6 +6,14 @@ import type {
   Sku,
 } from "@/types";
 import { orderBillingCycles } from "@/lib/billing-option";
+import {
+  areEquivalentDecimalValues,
+  calculateDiscountPercentage,
+  calculateDiscountedAmount,
+  isZeroDecimalValue,
+  normalizeMoneyAmount,
+  normalizePercentageValue,
+} from "@/lib/decimal";
 
 type CatalogSnapshot = Pick<DashboardSnapshot, "products" | "plans" | "skus">;
 
@@ -83,25 +91,59 @@ export function formatPriceLine(input: {
   amount?: string;
   currency?: string;
   ratePeriod?: string;
+  discountPercentage?: string;
+  discountedAmount?: string;
   period?: string;
   isPlanFree?: boolean;
   fallbackText?: string;
 }): string {
-  if (input.isPlanFree || isFreeAmount(input.amount)) return "Free";
-  if (input.amount?.trim()) {
-    const currency = formatCurrencyPrefix(input.currency);
-    const cadence = [
-      input.entity,
-      input.ratePeriod ??
-        input.period ??
-        (input.billingCycle
-          ? formatBillingCycleLabel(input.billingCycle)
-          : undefined),
-    ]
-      .filter(Boolean)
-      .join(" / ");
+  const normalizedAmount =
+    normalizeMoneyAmount(input.amount) ?? input.amount?.trim();
+  const normalizedDiscountPercentage =
+    normalizePercentageValue(input.discountPercentage) ??
+    input.discountPercentage?.trim();
+  const normalizedDiscountedAmount =
+    normalizeMoneyAmount(input.discountedAmount) ??
+    input.discountedAmount?.trim();
+  const currency = formatCurrencyPrefix(input.currency);
+  const cadence = [
+    input.entity,
+    input.ratePeriod ??
+      input.period ??
+      (input.billingCycle
+        ? formatBillingCycleLabel(input.billingCycle)
+        : undefined),
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const discountPercentage = normalizedDiscountPercentage
+    ? normalizedDiscountPercentage
+    : normalizedDiscountedAmount && normalizedAmount
+      ? calculateDiscountPercentage(
+          normalizedAmount,
+          normalizedDiscountedAmount,
+        )
+      : undefined;
+  const discountedAmount = discountPercentage
+    ? calculateDiscountedAmount(normalizedAmount ?? "", discountPercentage)
+    : normalizedDiscountedAmount;
 
-    return `${currency}${input.amount}${cadence ? ` / ${cadence}` : ""}`;
+  if (
+    discountPercentage &&
+    discountedAmount &&
+    !isZeroDecimalValue(discountPercentage) &&
+    !areEquivalentDecimalValues(discountedAmount, normalizedAmount)
+  ) {
+    const discountedLine = isFreeAmount(discountedAmount)
+      ? "Free"
+      : `${currency}${discountedAmount}${cadence ? ` / ${cadence}` : ""}`;
+
+    return `${discountedLine} (${discountPercentage}% off, was ${currency}${normalizedAmount})`;
+  }
+
+  if (input.isPlanFree || isFreeAmount(normalizedAmount)) return "Free";
+  if (normalizedAmount?.trim()) {
+    return `${currency}${normalizedAmount}${cadence ? ` / ${cadence}` : ""}`;
   }
 
   return input.fallbackText ?? "No pricing returned by source API";

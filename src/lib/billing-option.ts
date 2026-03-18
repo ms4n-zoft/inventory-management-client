@@ -1,4 +1,12 @@
 import type { ProductPricingPlan } from "@/lib/api";
+import {
+  areEquivalentDecimalValues,
+  calculateDiscountPercentage,
+  calculateDiscountedAmount,
+  normalizeDiscountFields,
+  normalizeMoneyAmount,
+  normalizePercentageValue,
+} from "@/lib/decimal";
 import type {
   BillingCycle,
   PricePerUnit,
@@ -110,6 +118,8 @@ export function createEmptyPricingDetails(): PricingDetails {
     currency: emptyPricePerUnit.currency,
     entity: emptyPricePerUnit.entity ?? defaultChargedPer,
     ratePeriod: emptyPricePerUnit.ratePeriod ?? "",
+    discountPercentage: emptyPricePerUnit.discountPercentage ?? "",
+    discountedAmount: emptyPricePerUnit.discountedAmount ?? "",
   };
 }
 
@@ -121,6 +131,121 @@ function clonePricingDetailsByCycle(
     yearly: { ...pricingDetailsByCycle.yearly },
     one_time: { ...pricingDetailsByCycle.one_time },
   };
+}
+
+function trimOrEmpty(value?: string): string {
+  return value?.trim() ?? "";
+}
+
+function syncDiscountDetails(
+  pricingDetails: PricingDetails,
+  source:
+    | "amount"
+    | "discountPercentage"
+    | "discountedAmount" = "discountPercentage",
+): PricingDetails {
+  const normalizedAmount =
+    normalizeMoneyAmount(pricingDetails.amount) ??
+    trimOrEmpty(pricingDetails.amount);
+  const normalizedDiscountPercentage =
+    normalizePercentageValue(pricingDetails.discountPercentage) ??
+    trimOrEmpty(pricingDetails.discountPercentage);
+  const normalizedDiscountedAmount =
+    normalizeMoneyAmount(pricingDetails.discountedAmount) ??
+    trimOrEmpty(pricingDetails.discountedAmount);
+
+  if (source === "discountedAmount") {
+    const nextDiscountPercentage = normalizedDiscountedAmount
+      ? calculateDiscountPercentage(
+          normalizedAmount,
+          normalizedDiscountedAmount,
+        )
+      : "";
+
+    return {
+      ...pricingDetails,
+      amount: normalizedAmount,
+      discountPercentage: nextDiscountPercentage,
+      discountedAmount: normalizedDiscountedAmount,
+    };
+  }
+
+  if (!normalizedDiscountPercentage && normalizedDiscountedAmount) {
+    const nextDiscountPercentage = calculateDiscountPercentage(
+      normalizedAmount,
+      normalizedDiscountedAmount,
+    );
+
+    return {
+      ...pricingDetails,
+      amount: normalizedAmount,
+      discountPercentage: nextDiscountPercentage,
+      discountedAmount: normalizedDiscountedAmount,
+    };
+  }
+
+  return {
+    ...pricingDetails,
+    amount: normalizedAmount,
+    discountPercentage: normalizedDiscountPercentage,
+    discountedAmount: normalizedDiscountPercentage
+      ? calculateDiscountedAmount(
+          normalizedAmount,
+          normalizedDiscountPercentage,
+        )
+      : "",
+  };
+}
+
+function buildDiscountFields(
+  pricePerUnit: Pick<
+    PricePerUnit,
+    "amount" | "discountPercentage" | "discountedAmount"
+  >,
+): Pick<PricePerUnit, "discountPercentage" | "discountedAmount"> {
+  return normalizeDiscountFields(pricePerUnit);
+}
+
+function hasValidDiscountFields(
+  pricePerUnit: Pick<
+    PricePerUnit,
+    "amount" | "discountPercentage" | "discountedAmount"
+  >,
+): boolean {
+  const rawDiscountPercentage = pricePerUnit.discountPercentage?.trim();
+  const rawDiscountedAmount = pricePerUnit.discountedAmount?.trim();
+
+  if (!rawDiscountPercentage && !rawDiscountedAmount) {
+    return true;
+  }
+
+  if (rawDiscountPercentage) {
+    const normalizedDiscountPercentage =
+      normalizePercentageValue(rawDiscountPercentage) ?? rawDiscountPercentage;
+    const expectedDiscountedAmount = calculateDiscountedAmount(
+      pricePerUnit.amount,
+      normalizedDiscountPercentage,
+    );
+
+    if (!expectedDiscountedAmount) {
+      return false;
+    }
+
+    return (
+      !rawDiscountedAmount ||
+      areEquivalentDecimalValues(rawDiscountedAmount, expectedDiscountedAmount)
+    );
+  }
+
+  const normalizedDiscountedAmount =
+    normalizeMoneyAmount(rawDiscountedAmount ?? "") ?? rawDiscountedAmount ?? "";
+
+  return Boolean(
+    calculateDiscountPercentage(
+      pricePerUnit.amount,
+      normalizedDiscountedAmount,
+    ),
+  );
 }
 
 export function autoPopulateYearlyAmount(monthlyAmount: string): string {
@@ -147,9 +272,12 @@ export function autoPopulateYearlyAmount(monthlyAmount: string): string {
     .slice(-fractionPart.length)
     .replace(/0+$/, "");
 
-  return fractionalDigits.length > 0
-    ? `${integerDigits}.${fractionalDigits}`
-    : integerDigits;
+  const yearlyAmount =
+    fractionalDigits.length > 0
+      ? `${integerDigits}.${fractionalDigits}`
+      : integerDigits;
+
+  return normalizeMoneyAmount(yearlyAmount) ?? yearlyAmount;
 }
 
 function amountFromSeedForCycle(
@@ -169,14 +297,22 @@ function createPricingDetailsForCycle(
   billingCycle: BillingCycle,
   seed?: PricePerUnit,
 ): PricingDetails {
-  return {
+  return syncDiscountDetails({
     amount: amountFromSeedForCycle(billingCycle, seed),
     currency: seed?.currency ?? "USD",
     entity: seed?.entity?.trim() || defaultChargedPer,
     ratePeriod:
       (seed?.billingCycle === billingCycle ? seed.ratePeriod : undefined) ??
       (seed ? defaultRatePeriodsByCycle[billingCycle] : ""),
-  };
+    discountPercentage:
+      seed?.billingCycle === billingCycle
+        ? (seed.discountPercentage?.trim() ?? "")
+        : "",
+    discountedAmount:
+      seed?.billingCycle === billingCycle
+        ? (seed.discountedAmount?.trim() ?? "")
+        : "",
+  });
 }
 
 export function createPricingDetailsByCycle(
@@ -243,8 +379,17 @@ export function syncPricingDetailsByBillingCycles(input: {
       nextPricingDetailsByCycle.yearly.amount.trim().length === 0 &&
       nextYearlyAmount
     ) {
-      nextPricingDetailsByCycle.yearly.amount = nextYearlyAmount;
+      nextPricingDetailsByCycle.yearly = syncDiscountDetails({
+        ...nextPricingDetailsByCycle.yearly,
+        amount: nextYearlyAmount,
+      });
     }
+  }
+
+  for (const billingCycle of selectedBillingCycles) {
+    nextPricingDetailsByCycle[billingCycle] = syncDiscountDetails(
+      nextPricingDetailsByCycle[billingCycle],
+    );
   }
 
   return nextPricingDetailsByCycle;
@@ -282,10 +427,20 @@ export function applyPricingDetailsChange(input: {
     return nextPricingDetailsByCycle;
   }
 
-  nextPricingDetailsByCycle[input.billingCycle] = {
-    ...nextPricingDetailsByCycle[input.billingCycle],
-    [input.field]: input.value,
-  };
+  const syncSource =
+    input.field === "amount" ||
+    input.field === "discountPercentage" ||
+    input.field === "discountedAmount"
+      ? input.field
+      : undefined;
+
+  nextPricingDetailsByCycle[input.billingCycle] = syncDiscountDetails(
+    {
+      ...nextPricingDetailsByCycle[input.billingCycle],
+      [input.field]: input.value,
+    },
+    syncSource,
+  );
 
   if (
     input.field === "amount" &&
@@ -304,10 +459,10 @@ export function applyPricingDetailsChange(input: {
       (previousAutoYearlyAmount.length > 0 &&
         currentYearlyAmount === previousAutoYearlyAmount)
     ) {
-      nextPricingDetailsByCycle.yearly = {
+      nextPricingDetailsByCycle.yearly = syncDiscountDetails({
         ...nextPricingDetailsByCycle.yearly,
         amount: nextAutoYearlyAmount,
-      };
+      });
     }
   }
 
@@ -319,12 +474,14 @@ export function pricingDetailsFromPricingOptions(
 ): PricingDetails {
   const primaryPricingOption = pricingOptions[0] ?? createEmptyPricePerUnit();
 
-  return {
+  return syncDiscountDetails({
     amount: primaryPricingOption.amount,
     currency: primaryPricingOption.currency,
     entity: primaryPricingOption.entity?.trim() || defaultChargedPer,
     ratePeriod: primaryPricingOption.ratePeriod ?? "",
-  };
+    discountPercentage: primaryPricingOption.discountPercentage?.trim() ?? "",
+    discountedAmount: primaryPricingOption.discountedAmount?.trim() ?? "",
+  });
 }
 
 export function pricingDetailsByCycleFromPricingOptions(
@@ -360,6 +517,7 @@ export function buildPricingOptionsFromDetails(input: {
     currency: input.pricingDetails.currency,
     entity: input.pricingDetails.entity,
     ratePeriod: input.pricingDetails.ratePeriod,
+    ...buildDiscountFields(input.pricingDetails),
   }));
 }
 
@@ -376,6 +534,7 @@ export function buildPricingOptionsFromCycleDetails(input: {
       currency: pricingDetails.currency,
       entity: pricingDetails.entity,
       ratePeriod: pricingDetails.ratePeriod,
+      ...buildDiscountFields(pricingDetails),
     };
   });
 }
@@ -435,7 +594,30 @@ export function normalizePricePerUnit(
     currency: pricePerUnit.currency.trim().toUpperCase(),
     entity: pricePerUnit.entity?.trim() || undefined,
     ratePeriod: pricePerUnit.ratePeriod?.trim() || undefined,
+    ...buildDiscountFields(pricePerUnit),
   };
+}
+
+export function hasValidPricingOptions(
+  pricingOptions: PricePerUnit[],
+): boolean {
+  if (pricingOptions.length === 0) {
+    return false;
+  }
+
+  const uniqueBillingCycles = new Set(
+    pricingOptions.map((pricingOption) => pricingOption.billingCycle),
+  );
+
+  return (
+    uniqueBillingCycles.size === pricingOptions.length &&
+    pricingOptions.every(
+      (pricingOption) =>
+        pricingOption.amount.trim().length > 0 &&
+        pricingOption.currency.trim().length > 0 &&
+        hasValidDiscountFields(pricingOption),
+    )
+  );
 }
 
 export function normalizePricingOptions(

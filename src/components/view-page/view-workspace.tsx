@@ -16,6 +16,7 @@ import {
   buildSkuCode,
   createPricingDetailsByCycle,
   ensureUniqueSkuCode,
+  hasValidPricingOptions,
   hasValidPurchaseConstraints,
   isStockTrackingEnabled,
   normalizePricingOptions,
@@ -194,16 +195,7 @@ export function ViewWorkspace({
   const billingHasPricing =
     Boolean(normalizedBillingRegion) &&
     billingHasValidConstraints &&
-    normalizedBillingPricingOptions.length > 0 &&
-    normalizedBillingPricingOptions.every(
-      (pricingOption) =>
-        pricingOption.amount.length > 0 && pricingOption.currency.length > 0,
-    ) &&
-    new Set(
-      normalizedBillingPricingOptions.map(
-        (pricingOption) => pricingOption.billingCycle,
-      ),
-    ).size === normalizedBillingPricingOptions.length;
+    hasValidPricingOptions(normalizedBillingPricingOptions);
   const currentBillingPricingOptions = useMemo(
     () => normalizePricingOptions(activeBillingEntry?.sku.pricingOptions ?? []),
     [activeBillingEntry],

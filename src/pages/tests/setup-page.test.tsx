@@ -37,12 +37,22 @@ const pricingOption = (
   currency = "USD",
   entity = "user",
   ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
+  discount?: {
+    discountPercentage?: string;
+    discountedAmount?: string;
+  },
 ): PricePerUnit => ({
   billingCycle,
   amount,
   currency,
   entity,
   ratePeriod,
+  ...(discount?.discountPercentage !== undefined
+    ? { discountPercentage: discount.discountPercentage }
+    : {}),
+  ...(discount?.discountedAmount !== undefined
+    ? { discountedAmount: discount.discountedAmount }
+    : {}),
 });
 
 const catalogResponse = {
@@ -144,6 +154,26 @@ function getPricingAmountInput(billingCycle: PricePerUnit["billingCycle"]) {
     billingCycle === "one_time"
       ? /one time price amount/i
       : new RegExp(`^${billingCycle} price amount$`, "i");
+
+  return screen.getByRole("textbox", { name: label });
+}
+
+function getDiscountPercentageInput(
+  billingCycle: PricePerUnit["billingCycle"],
+) {
+  const label =
+    billingCycle === "one_time"
+      ? /one time discount percentage/i
+      : new RegExp(`^${billingCycle} discount percentage$`, "i");
+
+  return screen.getByRole("textbox", { name: label });
+}
+
+function getDiscountedPriceInput(billingCycle: PricePerUnit["billingCycle"]) {
+  const label =
+    billingCycle === "one_time"
+      ? /one time discounted price/i
+      : new RegExp(`^${billingCycle} discounted price$`, "i");
 
   return screen.getByRole("textbox", { name: label });
 }
@@ -271,6 +301,12 @@ describe("setup page", () => {
       fireEvent.change(getPricingAmountInput("monthly"), {
         target: { value: "21" },
       });
+      fireEvent.change(getDiscountedPriceInput("monthly"), {
+        target: { value: "16.801" },
+      });
+      fireEvent.change(getDiscountedPriceInput("yearly"), {
+        target: { value: "188.997" },
+      });
       fireEvent.change(screen.getByPlaceholderText(/^e\.g\. 1$/i), {
         target: { value: "3" },
       });
@@ -278,6 +314,11 @@ describe("setup page", () => {
         target: { value: "20" },
       });
     });
+
+    expect(getDiscountedPriceInput("monthly")).toHaveValue("16.8");
+    expect(getDiscountedPriceInput("yearly")).toHaveValue("189");
+    expect(getDiscountPercentageInput("monthly")).toHaveValue("20");
+    expect(getDiscountPercentageInput("yearly")).toHaveValue("25");
 
     await waitFor(() => {
       expect(getStockQuantityInput("GCC")).toBeInTheDocument();
@@ -309,6 +350,8 @@ describe("setup page", () => {
                 currency: "USD",
                 entity: "user",
                 ratePeriod: "month",
+                discountPercentage: "20",
+                discountedAmount: "16.8",
               },
               {
                 billingCycle: "yearly",
@@ -316,6 +359,8 @@ describe("setup page", () => {
                 currency: "USD",
                 entity: "user",
                 ratePeriod: "year",
+                discountPercentage: "25",
+                discountedAmount: "189",
               },
             ],
             purchaseConstraints: {

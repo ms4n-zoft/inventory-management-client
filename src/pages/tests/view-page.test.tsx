@@ -18,12 +18,22 @@ const pricingOption = (
   currency = "USD",
   entity = "user",
   ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
+  discount?: {
+    discountPercentage?: string;
+    discountedAmount?: string;
+  },
 ): PricePerUnit => ({
   billingCycle,
   amount,
   currency,
   entity,
   ratePeriod,
+  ...(discount?.discountPercentage !== undefined
+    ? { discountPercentage: discount.discountPercentage }
+    : {}),
+  ...(discount?.discountedAmount !== undefined
+    ? { discountedAmount: discount.discountedAmount }
+    : {}),
 });
 
 const snapshot: DashboardSnapshot = {
@@ -334,6 +344,33 @@ describe("view page", () => {
         activationTimeline: "5 Days",
       });
     });
+  });
+
+  it("rounds discounted pricing to 2 decimal places on the view page", () => {
+    const discountedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      products: [snapshot.products[0]!],
+      plans: [snapshot.plans[0]!],
+      skus: [
+        {
+          ...snapshot.skus[0]!,
+          pricingOptions: [
+            pricingOption("monthly", "18.456", "USD", "user", "month", {
+              discountPercentage: "12.349",
+            }),
+          ],
+        },
+      ],
+      inventoryPools: [snapshot.inventoryPools[0]!],
+    };
+
+    renderViewRoute("/view/billing-options", discountedSnapshot);
+
+    expect(
+      screen.getByText(
+        /monthly: \$16\.18 \/ user \/ month \(12\.35% off, was \$18\.46\)/i,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("edits each billing cycle amount independently from the view dialog", async () => {

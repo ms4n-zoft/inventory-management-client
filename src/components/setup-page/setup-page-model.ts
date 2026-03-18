@@ -6,6 +6,7 @@ import {
   buildSkuCode,
   createPricingDetailsByCycle,
   ensureUniqueSkuCode,
+  hasValidPricingOptions as hasValidPricingOptionsForOffer,
   hasValidPurchaseConstraints,
   isStockTrackingEnabled,
   normalizePricingOptions,
@@ -109,23 +110,6 @@ export function toSearchResult(product: Product): ProductSearchResult {
     description: product.description,
     logoUrl: product.logoUrl,
   };
-}
-
-function hasValidPricingOptions(pricingOptions: PricePerUnit[]): boolean {
-  if (pricingOptions.length === 0) return false;
-
-  const uniqueBillingCycles = new Set(
-    pricingOptions.map((pricingOption) => pricingOption.billingCycle),
-  );
-
-  return (
-    uniqueBillingCycles.size === pricingOptions.length &&
-    pricingOptions.every(
-      (pricingOption) =>
-        pricingOption.amount.trim().length > 0 &&
-        pricingOption.currency.trim().length > 0,
-    )
-  );
 }
 
 export function pricingSeedFromPlanName(
@@ -267,7 +251,7 @@ export function buildRegionEntries(input: {
       : existingSku
         ? existingSku.code
         : ensureUniqueSkuCode(baseCode, existingSkuCodes);
-    const hasPricing = hasValidPricingOptions(normalizedPricingOptions);
+    const hasPricing = hasValidPricingOptionsForOffer(pricingOptions);
     const hasValidConstraints = hasValidPurchaseConstraints({
       minUnits: draft.minimumUnits,
       maxUnits: draft.maximumUnits,

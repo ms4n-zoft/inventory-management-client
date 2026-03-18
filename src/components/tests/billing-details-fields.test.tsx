@@ -13,18 +13,24 @@ function buildPricingDetailsByCycle(): PricingDetailsByCycle {
       currency: "USD",
       entity: "user",
       ratePeriod: "month",
+      discountPercentage: "",
+      discountedAmount: "",
     },
     yearly: {
       amount: "180",
       currency: "USD",
       entity: "user",
       ratePeriod: "year",
+      discountPercentage: "",
+      discountedAmount: "",
     },
     one_time: {
       amount: "300",
       currency: "USD",
       entity: "user",
       ratePeriod: "one time",
+      discountPercentage: "",
+      discountedAmount: "",
     },
   };
 }
@@ -175,5 +181,42 @@ describe("BillingDetailsFields", () => {
     expect(
       screen.getByRole("textbox", { name: /yearly price amount/i }),
     ).toHaveValue("144");
+  });
+
+  it("calculates the discounted price from the entered discount percentage", () => {
+    render(
+      <ControlledBillingDetailsFields initialBillingCycles={["monthly"]} />,
+    );
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: /monthly discount percentage/i }),
+      {
+        target: { value: "20.125" },
+      },
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: /monthly discounted price/i }),
+    ).toHaveValue("14.38");
+  });
+
+  it("calculates the discount percentage from the entered discounted price", () => {
+    render(
+      <ControlledBillingDetailsFields initialBillingCycles={["monthly"]} />,
+    );
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: /monthly discounted price/i }),
+      {
+        target: { value: "14.395" },
+      },
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: /monthly discounted price/i }),
+    ).toHaveValue("14.4");
+    expect(
+      screen.getByRole("textbox", { name: /monthly discount percentage/i }),
+    ).toHaveValue("20");
   });
 });
