@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { createPricingDetailsByCycle } from "@/lib/billing-option";
-import { buildSkuCatalogLookup } from "@/lib/catalog";
 import type { DashboardSnapshot, PricePerUnit } from "@/types";
 
 import {
   buildSetupPageDerivedState,
   createRegionDraft,
+  defaultActivationTimelineDays,
+  defaultMinimumUnits,
   regionDraftFromExisting,
 } from "../setup-page-model";
 
@@ -89,6 +90,13 @@ const selectedProduct = {
 };
 
 describe("setup page model", () => {
+  it("starts new region drafts with default minimum units and activation timeline", () => {
+    const draft = createRegionDraft();
+
+    expect(draft.minimumUnits).toBe(defaultMinimumUnits);
+    expect(draft.activationTimeline).toBe(defaultActivationTimelineDays);
+  });
+
   it("summarizes mixed create, update, and stock actions", () => {
     const existingBaseDraft = regionDraftFromExisting(snapshot.skus[0]!, 12);
     const existingDraft = {
@@ -127,7 +135,6 @@ describe("setup page model", () => {
 
     const derived = buildSetupPageDerivedState({
       snapshot,
-      skuCatalog: buildSkuCatalogLookup(snapshot),
       selectedProduct,
       pricingPlans: [],
       planName: "Standard",
@@ -144,7 +151,6 @@ describe("setup page model", () => {
     expect(derived.existingProduct?._id).toBe("product-1");
     expect(derived.existingPlan?._id).toBe("plan-1");
     expect(derived.existingRegions).toEqual(["GCC"]);
-    expect(derived.recentSetups).toHaveLength(1);
     expect(derived.regionEntries).toHaveLength(2);
     expect(derived.activeRegionEntry?.generatedSkuCode).toBe(
       "jira-standard-gcc",
@@ -175,7 +181,6 @@ describe("setup page model", () => {
 
     const derived = buildSetupPageDerivedState({
       snapshot,
-      skuCatalog: buildSkuCatalogLookup(snapshot),
       selectedProduct,
       pricingPlans: [],
       planName: "Standard",
@@ -227,7 +232,6 @@ describe("setup page model", () => {
 
     const derived = buildSetupPageDerivedState({
       snapshot,
-      skuCatalog: buildSkuCatalogLookup(snapshot),
       selectedProduct,
       pricingPlans: [],
       planName: "Standard",
@@ -273,7 +277,6 @@ describe("setup page model", () => {
 
     const derived = buildSetupPageDerivedState({
       snapshot: multiCycleSnapshot,
-      skuCatalog: buildSkuCatalogLookup(multiCycleSnapshot),
       selectedProduct,
       pricingPlans: [],
       planName: "Standard",

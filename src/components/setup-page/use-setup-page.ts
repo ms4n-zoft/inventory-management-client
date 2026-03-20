@@ -11,11 +11,9 @@ import type { ProductPricingPlan, ProductSearchResult } from "@/lib/api";
 import { api } from "@/lib/api";
 import {
   applyPricingDetailsChange,
-  isStockTrackingEnabled,
   orderRegions,
   syncPricingDetailsByBillingCycles,
 } from "@/lib/billing-option";
-import { buildSkuCatalogLookup } from "@/lib/catalog";
 import type { ActionRunner } from "@/components/operations-app";
 import type {
   BillingCycle,
@@ -30,8 +28,6 @@ import {
   cloneRegionDraft,
   createRegionDraft,
   pricingSeedFromPlanName,
-  regionDraftFromExisting,
-  toSearchResult,
   type RegionDraft,
 } from "./setup-page-model";
 
@@ -62,17 +58,15 @@ export function useSetupPage({
   const [planName, setPlanName] = useState("");
   const [selectedRegions, setSelectedRegions] = useState<Region[]>([]);
   const [activeRegion, setActiveRegion] = useState<Region | undefined>();
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [regionDrafts, setRegionDrafts] = useState<
     Partial<Record<Region, RegionDraft>>
   >({});
-
-  const skuCatalog = useMemo(() => buildSkuCatalogLookup(snapshot), [snapshot]);
 
   const derived = useMemo(
     () =>
       buildSetupPageDerivedState({
         snapshot,
-        skuCatalog,
         selectedProduct,
         pricingPlans,
         planName,
@@ -91,7 +85,6 @@ export function useSetupPage({
       regionDrafts,
       selectedProduct,
       selectedRegions,
-      skuCatalog,
       snapshot,
     ],
   );
@@ -215,9 +208,6 @@ export function useSetupPage({
   const handleSelectedRegionsChange = useCallback(
     (nextRegions: Region[]) => {
       const orderedNextRegions = orderRegions(nextRegions);
-      const addedRegion = orderedNextRegions.find(
-        (region) => !selectedRegions.includes(region),
-      );
       const activeDraft = activeRegion ? regionDrafts[activeRegion] : undefined;
       const pricingSeed = pricingSeedFromPlanName(pricingPlans, planName);
 
@@ -237,21 +227,9 @@ export function useSetupPage({
 
       setSelectedRegions(orderedNextRegions);
 
-      if (addedRegion) {
-        setActiveRegion(addedRegion);
-        return;
-      }
-
-      if (orderedNextRegions.length === 0) {
-        setActiveRegion(undefined);
-        return;
-      }
-
-      if (!activeRegion || !orderedNextRegions.includes(activeRegion)) {
-        setActiveRegion(orderedNextRegions[0]);
-      }
+      setActiveRegion(orderedNextRegions[0]);
     },
-    [activeRegion, planName, pricingPlans, regionDrafts, selectedRegions],
+    [activeRegion, planName, pricingPlans, regionDrafts],
   );
 
   useEffect(() => {
@@ -264,46 +242,6 @@ export function useSetupPage({
       setActiveRegion(selectedRegions[0]);
     }
   }, [activeRegion, selectedRegions]);
-
-  const handleEditExistingSetup = useCallback(
-    (skuId: string) => {
-      const catalogEntry = skuCatalog.get(skuId);
-      if (!catalogEntry?.product || !catalogEntry.plan) return;
-
-      const matchingPool = isStockTrackingEnabled(
-        catalogEntry.sku.purchaseConstraints,
-      )
-        ? snapshot.inventoryPools.find((pool) => pool.skuId === skuId)
-        : undefined;
-
-      setSelectedProduct(toSearchResult(catalogEntry.product));
-      setSearchQuery(catalogEntry.product.name);
-      setSearchResults([]);
-      setSearchDone(false);
-      setSearching(false);
-      setLoadingPricing(false);
-      setPricingPlans([]);
-      setPlanName(catalogEntry.plan.name);
-      setSelectedRegions([catalogEntry.sku.region]);
-      setActiveRegion(catalogEntry.sku.region);
-      setRegionDrafts({
-        [catalogEntry.sku.region]: regionDraftFromExisting(
-          catalogEntry.sku,
-          matchingPool?.totalQuantity ?? 0,
-        ),
-      });
-
-      requestAnimationFrame(() => {
-        if (typeof formRef.current?.scrollIntoView === "function") {
-          formRef.current.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          });
-        }
-      });
-    },
-    [skuCatalog, snapshot.inventoryPools],
-  );
 
   const updateRegionDraft = useCallback(
     (region: Region, updater: (draft: RegionDraft) => RegionDraft) => {
@@ -411,36 +349,49 @@ export function useSetupPage({
   );
 
   const resetForm = useCallback(() => {
+    setReviewOpen(false);
     clearSelectedProduct();
   }, [clearSelectedProduct]);
 
-  const handleSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (!selectedProduct || !derived.summary.canSubmit) return;
+  const submitEntries = useCallback(async () => {
+    if (!selectedProduct || !derived.summary.canSubmit) return;
 
-      const actionableEntries = derived.regionEntries.filter(
-        (entry) => entry.offerActionNeeded || entry.inventoryActionNeeded,
-      );
+    const actionableEntries = derived.regionEntries.filter(
+      (entry) => entry.offerActionNeeded || entry.inventoryActionNeeded,
+    );
 
-      if (actionableEntries.length === 0) return;
+    if (actionableEntries.length === 0) return false;
 
-      void runAction(
-        () =>
-          submitSetupEntries({
-            selectedProduct,
-            normalizedPlanName: derived.normalizedPlanName,
-            existingProduct: derived.existingProduct,
-            existingPlan: derived.existingPlan,
-            actionableEntries,
-          }),
-        derived.summary.successMessage,
-      ).then((ok) => {
-        if (ok) resetForm();
-      });
-    },
-    [derived, resetForm, runAction, selectedProduct],
-  );
+    const ok = await runAction(
+      () =>
+        submitSetupEntries({
+          selectedProduct,
+          normalizedPlanName: derived.normalizedPlanName,
+          existingProduct: derived.existingProduct,
+          existingPlan: derived.existingPlan,
+          actionableEntries,
+        }),
+      derived.summary.successMessage,
+    );
+
+    if (ok) resetForm();
+
+    return ok;
+  }, [derived, resetForm, runAction, selectedProduct]);
+
+  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  }, []);
+
+  const openReview = useCallback(() => {
+    if (!derived.summary.canSubmit) return;
+
+    setReviewOpen(true);
+  }, [derived.summary.canSubmit]);
+
+  const handleConfirmSubmit = useCallback(() => {
+    void submitEntries();
+  }, [submitEntries]);
 
   return {
     formRef,
@@ -494,28 +445,21 @@ export function useSetupPage({
       onInventoryQuantityChange: updateInventoryQuantity,
       onInventoryActorChange: updateInventoryActor,
     },
-    reviewPanel: {
+    reviewDialog: {
+      open: reviewOpen,
+      onOpenChange: setReviewOpen,
       selectedProductName: selectedProduct?.name,
       planName: derived.normalizedPlanName,
-      selectedRegions,
-      activeRegion: derived.activeRegionEntry?.region,
-      stockTrackingEnabled: derived.activeRegionEntry?.stockTrackingEnabled,
-      pricingOptions: derived.reviewPricingOptions,
-      existingSku: derived.activeRegionEntry?.existingSku,
-      generatedSkuCode: derived.activeRegionEntry?.generatedSkuCode ?? "",
+      entries: derived.regionEntries,
       saveMessage: derived.summary.saveMessage,
     },
     submit: {
       canSubmit: derived.summary.canSubmit,
-      showEditIcon: derived.summary.showEditIcon,
-      label: derived.summary.submitLabel,
+      label: "Review and create offers",
       saveMessage: derived.summary.saveMessage,
       onSubmit: handleSubmit,
-    },
-    recentSetupsPanel: {
-      entries: derived.recentSetups,
-      editingSkuId: derived.activeRegionEntry?.existingSku?._id,
-      onEditSetup: handleEditExistingSetup,
+      openReview,
+      confirm: handleConfirmSubmit,
     },
   };
 }

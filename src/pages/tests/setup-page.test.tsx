@@ -149,6 +149,16 @@ async function toggleBillingCycle(optionLabel: string) {
   });
 }
 
+async function openReviewDialog() {
+  await act(async () => {
+    fireEvent.click(
+      screen.getByRole("button", { name: /review and create offers/i }),
+    );
+  });
+
+  return screen.getByRole("dialog");
+}
+
 function getPricingAmountInput(billingCycle: PricePerUnit["billingCycle"]) {
   const label =
     billingCycle === "one_time"
@@ -236,6 +246,9 @@ describe("setup page", () => {
         screen.getByDisplayValue("jira-best-value-gcc"),
       ).toBeInTheDocument();
     });
+
+    expect(screen.getByPlaceholderText(/^e\.g\. 1$/i)).toHaveValue(1);
+    expect(screen.getByPlaceholderText(/^e\.g\. 7$/i)).toHaveValue(7);
   });
 
   it("creates starting stock together with separate monthly and yearly pricing", async () => {
@@ -330,9 +343,18 @@ describe("setup page", () => {
       });
     });
 
+    const dialog = await openReviewDialog();
+
+    expect(
+      within(dialog).getByRole("tab", { name: /gcc/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/review selected offers/i),
+    ).toBeInTheDocument();
+
     await act(async () => {
       fireEvent.click(
-        screen.getByRole("button", { name: /save and track stock/i }),
+        within(dialog).getByRole("button", { name: /create offers/i }),
       );
     });
 
@@ -437,6 +459,16 @@ describe("setup page", () => {
     await toggleRegion("INDIA");
 
     await waitFor(() => {
+      expect(screen.getByDisplayValue("jira-standard-gcc")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("tab", { name: /india/i }), {
+        button: 0,
+      });
+    });
+
+    await waitFor(() => {
       expect(screen.getByRole("tab", { name: /india/i })).toHaveAttribute(
         "aria-selected",
         "true",
@@ -467,9 +499,28 @@ describe("setup page", () => {
       });
     });
 
+    const dialog = await openReviewDialog();
+
+    expect(
+      within(dialog).getByRole("tab", { name: /gcc/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("tab", { name: /india/i }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.mouseDown(within(dialog).getByRole("tab", { name: /india/i }), {
+        button: 0,
+      });
+    });
+
+    expect(
+      within(dialog).getByText(/current stock: 0 -> 5|starting stock: 5/i),
+    ).toBeInTheDocument();
+
     await act(async () => {
       fireEvent.click(
-        screen.getByRole("button", { name: /save selected regions/i }),
+        within(dialog).getByRole("button", { name: /create offers/i }),
       );
     });
 
@@ -506,9 +557,10 @@ describe("setup page", () => {
           },
         ],
         purchaseConstraints: {
+          minUnits: 1,
           maxUnits: 25,
         },
-        activationTimeline: undefined,
+        activationTimeline: "7",
       });
       expect(createInventoryPool).toHaveBeenNthCalledWith(1, {
         skuId: "sku-created-1",
@@ -604,9 +656,15 @@ describe("setup page", () => {
       });
     });
 
+    const dialog = await openReviewDialog();
+
+    expect(
+      within(dialog).getByRole("tab", { name: /india/i }),
+    ).toBeInTheDocument();
+
     await act(async () => {
       fireEvent.click(
-        screen.getByRole("button", { name: /save and track stock/i }),
+        within(dialog).getByRole("button", { name: /create offers/i }),
       );
     });
 
@@ -631,9 +689,10 @@ describe("setup page", () => {
           },
         ],
         purchaseConstraints: {
+          minUnits: 1,
           maxUnits: 12,
         },
-        activationTimeline: undefined,
+        activationTimeline: "7",
       });
       expect(createInventoryPool).toHaveBeenCalledWith({
         skuId: "sku-existing-1",
@@ -642,15 +701,8 @@ describe("setup page", () => {
     });
   });
 
-  it("loads an existing setup back into the form and updates stock", async () => {
-    vi.spyOn(api, "getProductPricing").mockResolvedValue([]);
-    const adjustInventory = vi
-      .spyOn(api, "adjustInventory")
-      .mockResolvedValue({});
-    const runAction: ActionRunner = async (work) => {
-      await work();
-      return true;
-    };
+  it("does not render the existing setup continuation panel", () => {
+    const runAction: ActionRunner = async () => true;
 
     render(
       <SetupPage
@@ -706,33 +758,12 @@ describe("setup page", () => {
       />,
     );
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /edit setup/i }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue("jira-standard-gcc")).toBeInTheDocument();
-      expect(getStockQuantityInput("GCC")).toHaveValue(12);
-    });
-
-    await act(async () => {
-      fireEvent.change(getStockQuantityInput("GCC"), {
-        target: { value: "18" },
-      });
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /update stock/i }));
-    });
-
-    await waitFor(() => {
-      expect(adjustInventory).toHaveBeenCalledWith({
-        skuId: "sku-existing-1",
-        change: 6,
-        reason: "MANUAL_ADD",
-        actor: "operations",
-      });
-    });
+    expect(
+      screen.queryByText(/continue from an existing setup/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /edit setup/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides starting stock when the selected region is unlimited", async () => {
@@ -761,9 +792,13 @@ describe("setup page", () => {
     expect(
       screen.queryByRole("region", { name: /^gcc stock$/i }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/set starting stock/i)).not.toBeInTheDocument();
+
+    const dialog = await openReviewDialog();
+
     expect(
-      screen.getByText(
-        /starting stock is only available for regions with a maximum unit cap/i,
+      within(dialog).getByText(
+        /stock is not tracked because maximum units is unlimited/i,
       ),
     ).toBeInTheDocument();
   });

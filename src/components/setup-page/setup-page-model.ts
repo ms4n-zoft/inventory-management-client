@@ -15,7 +15,6 @@ import {
   purchaseConstraintsToFormValues,
   sameLabel,
 } from "@/lib/billing-option";
-import { buildSkuCatalogLookup } from "@/lib/catalog";
 import type {
   BillingCycle,
   DashboardSnapshot,
@@ -29,9 +28,9 @@ import type {
   Sku,
 } from "@/types";
 
-import type { RecentSetupEntry } from "./types";
-
 export const defaultInventoryActor = "operations";
+export const defaultMinimumUnits = "1";
+export const defaultActivationTimelineDays = "7";
 
 export type RegionDraft = {
   billingCycles: BillingCycle[];
@@ -88,29 +87,9 @@ export type SetupPageDerivedState = {
   activeRegionEntry?: RegionEntry;
   activeDraft: RegionDraft;
   reviewPricingOptions: PricePerUnit[];
-  recentSetups: RecentSetupEntry[];
   existingRegions: Region[];
   summary: SetupPageSummary;
 };
-
-function slugifySkuPart(value?: string): string {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-export function toSearchResult(product: Product): ProductSearchResult {
-  return {
-    id: product.externalId,
-    slug: slugifySkuPart(product.name),
-    name: product.name,
-    vendor: product.vendor,
-    description: product.description,
-    logoUrl: product.logoUrl,
-  };
-}
 
 export function pricingSeedFromPlanName(
   pricingPlans: ProductPricingPlan[],
@@ -129,9 +108,9 @@ export function createRegionDraft(pricingOption?: PricePerUnit): RegionDraft {
       ? billingCyclesFromPricingOptions([pricingOption])
       : ["monthly"],
     pricingDetailsByCycle: createPricingDetailsByCycle(pricingOption),
-    minimumUnits: "",
+    minimumUnits: defaultMinimumUnits,
     maximumUnits: "",
-    activationTimeline: "",
+    activationTimeline: defaultActivationTimelineDays,
     inventoryQuantity: 0,
     inventoryActor: defaultInventoryActor,
   };
@@ -318,39 +297,6 @@ export function buildRegionEntries(input: {
   });
 }
 
-export function buildRecentSetupEntries(
-  snapshot: DashboardSnapshot,
-  skuCatalog: ReturnType<typeof buildSkuCatalogLookup>,
-): RecentSetupEntry[] {
-  return [...snapshot.skus]
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-    .map((sku) => {
-      const catalogEntry = skuCatalog.get(sku._id);
-      const pools = snapshot.inventoryPools.filter(
-        (pool) => pool.skuId === sku._id,
-      );
-      const trackedPools = isStockTrackingEnabled(sku.purchaseConstraints)
-        ? pools
-        : [];
-      const trackedQuantity = trackedPools.reduce(
-        (sum, pool) => sum + pool.totalQuantity,
-        0,
-      );
-
-      return {
-        sku,
-        plan: catalogEntry?.plan,
-        product: catalogEntry?.product,
-        pools: trackedPools,
-        trackedQuantity,
-      };
-    })
-    .filter((entry): entry is RecentSetupEntry =>
-      Boolean(entry.plan && entry.product),
-    )
-    .slice(0, 6);
-}
-
 export function buildSetupSummary(input: {
   regionEntries: RegionEntry[];
   activeRegionEntry?: RegionEntry;
@@ -472,7 +418,6 @@ export function buildSetupSummary(input: {
 
 export function buildSetupPageDerivedState(input: {
   snapshot: DashboardSnapshot;
-  skuCatalog: ReturnType<typeof buildSkuCatalogLookup>;
   selectedProduct: ProductSearchResult | null;
   pricingPlans: ProductPricingPlan[];
   planName: string;
@@ -533,10 +478,6 @@ export function buildSetupPageDerivedState(input: {
   const activeDraft =
     activeRegionEntry?.draft ?? createRegionDraft(planPricingSeed);
   const reviewPricingOptions = activeRegionEntry?.pricingOptions ?? [];
-  const recentSetups = buildRecentSetupEntries(
-    input.snapshot,
-    input.skuCatalog,
-  );
   const existingRegions = regionEntries
     .filter((entry) => entry.existingSku)
     .map((entry) => entry.region);
@@ -551,7 +492,6 @@ export function buildSetupPageDerivedState(input: {
     activeRegionEntry,
     activeDraft,
     reviewPricingOptions,
-    recentSetups,
     existingRegions,
     summary,
   };

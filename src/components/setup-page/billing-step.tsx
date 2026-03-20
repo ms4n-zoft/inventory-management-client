@@ -1,3 +1,4 @@
+import { useCallback, useRef } from "react";
 import { PackageIcon } from "lucide-react";
 
 import type { ProductSearchResult } from "@/lib/api";
@@ -67,100 +68,127 @@ export function BillingStep({
   activationTimeline: string;
   onActivationTimelineChange: (value: string) => void;
 }) {
+  const stepRef = useRef<HTMLDivElement | null>(null);
+
+  const handleSelectedRegionsChange = useCallback(
+    (value: Region[]) => {
+      const topBeforeUpdate = stepRef.current?.getBoundingClientRect().top;
+
+      onSelectedRegionsChange(value);
+
+      if (topBeforeUpdate === undefined) {
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        const topAfterUpdate = stepRef.current?.getBoundingClientRect().top;
+
+        if (
+          topAfterUpdate === undefined ||
+          typeof window.scrollBy !== "function"
+        ) {
+          return;
+        }
+
+        const topDelta = topAfterUpdate - topBeforeUpdate;
+
+        if (Math.abs(topDelta) > 1) {
+          window.scrollBy({ top: topDelta });
+        }
+      });
+    },
+    [onSelectedRegionsChange],
+  );
+
   return (
-    <SetupStepCard
-      step={2}
-      icon={PackageIcon}
-      title="Review offer details"
-      description="Select one or more regions, then fine-tune each region tab before saving the offer set."
-    >
-      {selectedProduct ? (
-        <FieldGroup>
-          <div className="space-y-4">
-            <Field>
-              <FieldLabel>Offer regions</FieldLabel>
-              <RegionMultiSelect
-                value={selectedRegions}
-                onChange={onSelectedRegionsChange}
-                disabled={!detailsReady || loadingPricing}
-              />
-              <FieldDescription>
-                Pick one or both regions. You can keep multiple selected at
-                once, and each selected region opens its own offer tab.
-              </FieldDescription>
-            </Field>
+    <div ref={stepRef}>
+      <SetupStepCard
+        step={2}
+        icon={PackageIcon}
+        title="Review offer details"
+        description="Select one or more regions, then fine-tune each region tab before saving the offer set."
+      >
+        {selectedProduct ? (
+          <FieldGroup>
+            <div className="space-y-4">
+              <Field>
+                <FieldLabel>Offer regions</FieldLabel>
+                <RegionMultiSelect
+                  value={selectedRegions}
+                  onChange={handleSelectedRegionsChange}
+                  disabled={!detailsReady || loadingPricing}
+                />
+                <FieldDescription>
+                  Pick one or both regions. You can keep multiple selected at
+                  once, and each selected region opens its own offer tab.
+                </FieldDescription>
+              </Field>
 
-            {selectedRegions.length > 0 && activeRegion ? (
-              <Tabs
-                value={activeRegion}
-                onValueChange={(value) => onActiveRegionChange(value as Region)}
-              >
-                <TabsList variant="line" aria-label="Region tabs">
-                  {selectedRegions.map((region) => {
-                    const existingRegion = existingRegions.includes(region);
-
-                    return (
-                      <TabsTrigger
-                        key={region}
-                        value={region}
-                        className="group/region-tab h-auto items-start gap-0 text-left"
-                      >
-                        <span className="flex flex-col items-start gap-1">
+              {selectedRegions.length > 0 && activeRegion ? (
+                <Tabs
+                  value={activeRegion}
+                  onValueChange={(value) =>
+                    onActiveRegionChange(value as Region)
+                  }
+                >
+                  <TabsList variant="line" aria-label="Region tabs">
+                    {selectedRegions.map((region) => {
+                      return (
+                        <TabsTrigger
+                          key={region}
+                          value={region}
+                          className="group/region-tab h-auto items-start gap-0 text-left"
+                        >
                           <span className="leading-none">{region}</span>
-                          {existingRegion ? (
-                            <span className="text-xs text-muted-foreground transition-colors group-data-[state=active]/region-tab:text-muted-foreground">
-                              existing setup
-                            </span>
-                          ) : null}
-                        </span>
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
 
-                <TabsContent key={activeRegion} value={activeRegion}>
-                  <BillingDetailsFields
-                    instanceKey={`${selectedProduct.id}-${activeRegion}`}
-                    region={activeRegion}
-                    onRegionChange={() => {}}
-                    regionDescription=""
-                    hideRegionField
-                    catalogCode={generatedSkuCode}
-                    catalogCodeDescription={
-                      existingSku
-                        ? "This regional offer already exists. Saving will update its pricing, constraints, or activation details in place."
-                        : generatedSkuCode
-                          ? "Generated from the product, plan, and active region tab."
-                          : "Choose a plan in step 1 and at least one region here to generate the catalog code."
-                    }
-                    billingCycles={billingCycles}
-                    onBillingCyclesChange={onBillingCyclesChange}
-                    pricingDetailsByCycle={pricingDetailsByCycle}
-                    onPricingDetailsChange={onPricingDetailsChange}
-                    minimumUnits={minimumUnits}
-                    onMinimumUnitsChange={onMinimumUnitsChange}
-                    maximumUnits={maximumUnits}
-                    onMaximumUnitsChange={onMaximumUnitsChange}
-                    activationTimeline={activationTimeline}
-                    onActivationTimelineChange={onActivationTimelineChange}
-                    disabled={!detailsReady || loadingPricing}
-                    amountDescription="Required for every billing cycle you keep on the active region tab."
-                  />
-                </TabsContent>
-              </Tabs>
-            ) : (
-              <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-                Choose at least one region to open its offer tab.
-              </p>
-            )}
-          </div>
-        </FieldGroup>
-      ) : (
-        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          Choose a product and plan in step 1 to fill in the regional offer
-          details here.
-        </p>
-      )}
-    </SetupStepCard>
+                  <TabsContent key={activeRegion} value={activeRegion}>
+                    <BillingDetailsFields
+                      instanceKey={`${selectedProduct.id}-${activeRegion}`}
+                      region={activeRegion}
+                      onRegionChange={() => {}}
+                      regionDescription=""
+                      hideRegionField
+                      catalogCode={generatedSkuCode}
+                      catalogCodeDescription={
+                        existingSku
+                          ? "This regional offer already exists. Saving will update its pricing, constraints, or activation details in place."
+                          : generatedSkuCode
+                            ? "Generated from the product, plan, and active region tab."
+                            : "Choose a plan in step 1 and at least one region here to generate the catalog code."
+                      }
+                      billingCycles={billingCycles}
+                      onBillingCyclesChange={onBillingCyclesChange}
+                      pricingDetailsByCycle={pricingDetailsByCycle}
+                      onPricingDetailsChange={onPricingDetailsChange}
+                      minimumUnits={minimumUnits}
+                      onMinimumUnitsChange={onMinimumUnitsChange}
+                      maximumUnits={maximumUnits}
+                      onMaximumUnitsChange={onMaximumUnitsChange}
+                      activationTimeline={activationTimeline}
+                      onActivationTimelineChange={onActivationTimelineChange}
+                      disabled={!detailsReady || loadingPricing}
+                      amountDescription="Required for every billing cycle you keep on the active region tab."
+                    />
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+                  Choose at least one region to open its offer tab.
+                </p>
+              )}
+            </div>
+          </FieldGroup>
+        ) : (
+          <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            Choose a product and plan in step 1 to fill in the regional offer
+            details here.
+          </p>
+        )}
+      </SetupStepCard>
+    </div>
   );
 }
