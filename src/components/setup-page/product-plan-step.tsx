@@ -34,6 +34,7 @@ export function ProductPlanStep({
   onPlanNameChange,
   selectedPricingPlan,
   existingProduct,
+  previousPlanSuggestions,
 }: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -49,7 +50,11 @@ export function ProductPlanStep({
   onPlanNameChange: (value: string) => void;
   selectedPricingPlan?: ProductPricingPlan;
   existingProduct?: Product;
+  previousPlanSuggestions: string[];
 }) {
+  const planSuggestionListId = "setup-plan-suggestions";
+  const hasPreviousPlanSuggestions = previousPlanSuggestions.length > 0;
+
   return (
     <SetupStepCard
       step={1}
@@ -223,6 +228,9 @@ export function ProductPlanStep({
                   onChange={(event) => onPlanNameChange(event.target.value)}
                   placeholder="Or type a different plan name"
                   disabled={!selectedProduct}
+                  list={
+                    hasPreviousPlanSuggestions ? planSuggestionListId : undefined
+                  }
                 />
               </div>
             ) : (
@@ -231,15 +239,29 @@ export function ProductPlanStep({
                 onChange={(event) => onPlanNameChange(event.target.value)}
                 placeholder="e.g. Standard"
                 disabled={!selectedProduct}
+                list={
+                  hasPreviousPlanSuggestions ? planSuggestionListId : undefined
+                }
               />
             )}
+            {hasPreviousPlanSuggestions ? (
+              <datalist id={planSuggestionListId}>
+                {previousPlanSuggestions.map((suggestion) => (
+                  <option key={suggestion} value={suggestion} />
+                ))}
+              </datalist>
+            ) : null}
             <FieldDescription>
               {selectedPricingPlan
                 ? `Selected quote: ${formatPriceLine(selectedPricingPlan)}. You can still adjust it before saving.`
                 : selectedProduct
                   ? pricingPlans.length > 0
-                    ? "Pick one of the plan cards above or type a different plan name below."
-                    : "Type a new plan name to unlock the next steps."
+                    ? hasPreviousPlanSuggestions
+                      ? "Pick one of the plan cards above or type a different plan name below. Previous catalog plan names for this product will be suggested as you type."
+                      : "Pick one of the plan cards above or type a different plan name below."
+                    : hasPreviousPlanSuggestions
+                      ? "Type a new or existing plan name to unlock the next steps. Previous catalog plan names for this product will be suggested as you type."
+                      : "Type a new plan name to unlock the next steps."
                   : "Choose a product first to fetch plan suggestions."}
             </FieldDescription>
           </Field>

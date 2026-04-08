@@ -1,4 +1,4 @@
-import { act } from "react";
+﻿import { act } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,10 +8,27 @@ import type { SaleListEntry } from "@/types";
 vi.mock("@/lib/api", () => ({
   api: {
     getSku: vi.fn(),
+    upsertSaleActivation: vi.fn(),
   },
 }));
 
 import { SalesPage } from "../sales-page";
+
+function pricingOption(
+  billingCycle: "monthly" | "quarterly" | "half_yearly" | "yearly" | "one_time",
+  amount: string,
+  currency = "USD",
+  entity = "user",
+  ratePeriod: string = billingCycle,
+) {
+  return {
+    billingCycle,
+    amount,
+    currency,
+    entity,
+    ratePeriod,
+  } as const;
+}
 
 const sales: SaleListEntry[] = [
   {
@@ -51,15 +68,8 @@ const sales: SaleListEntry[] = [
       code: "pipedrive-starter-pack-india",
       region: "INDIA",
       seatType: "seat",
-      pricingOptions: [
-        {
-          billingCycle: "monthly",
-          amount: "3060",
-          currency: "INR",
-          entity: "user",
-          ratePeriod: "month",
-        },
-      ],
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption("monthly", "3060", "INR"),
       purchaseConstraints: {
         minUnits: 1,
         maxUnits: 25,
@@ -113,15 +123,8 @@ const sales: SaleListEntry[] = [
       code: "slack-business-gcc",
       region: "GCC",
       seatType: "seat",
-      pricingOptions: [
-        {
-          billingCycle: "monthly",
-          amount: "12",
-          currency: "USD",
-          entity: "user",
-          ratePeriod: "month",
-        },
-      ],
+      purchaseType: "one_time" as const,
+      pricingOption: pricingOption("monthly", "12"),
       purchaseConstraints: {
         minUnits: 1,
         maxUnits: 20,
@@ -150,6 +153,7 @@ const sales: SaleListEntry[] = [
 describe("sales page", () => {
   beforeEach(() => {
     vi.mocked(api.getSku).mockReset();
+    vi.mocked(api.upsertSaleActivation).mockReset();
   });
 
   it("renders recorded sales and filters by search query", async () => {
@@ -183,22 +187,8 @@ describe("sales page", () => {
       code: "pipedrive-starter-pack-india",
       region: "INDIA",
       seatType: "seat",
-      pricingOptions: [
-        {
-          billingCycle: "monthly",
-          amount: "3060",
-          currency: "INR",
-          entity: "user",
-          ratePeriod: "month",
-        },
-        {
-          billingCycle: "yearly",
-          amount: "36000",
-          currency: "INR",
-          entity: "user",
-          ratePeriod: "year",
-        },
-      ],
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption("monthly", "3060", "INR"),
       purchaseConstraints: {
         minUnits: 1,
         maxUnits: 25,
@@ -218,9 +208,9 @@ describe("sales page", () => {
 
     expect(api.getSku).toHaveBeenCalledWith("sku-1");
 
-    expect(await screen.findByText(/pricing options/i)).toBeInTheDocument();
+    expect(await screen.findByText(/pricing option/i)).toBeInTheDocument();
     expect(screen.getByText(/7 working days/i)).toBeInTheDocument();
-    expect(screen.getByText(/36000/i)).toBeInTheDocument();
+    expect(screen.getByText(/3060/i)).toBeInTheDocument();
     expect(screen.getByText(/^subscription$/i)).toBeInTheDocument();
 
     fireEvent.click(
@@ -250,15 +240,14 @@ describe("sales page", () => {
       code: "slack-business-gcc",
       region: "GCC",
       seatType: "seat",
-      pricingOptions: [
-        {
-          billingCycle: "one_time",
-          amount: "299",
-          currency: "USD",
-          entity: "license",
-          ratePeriod: "one time",
-        },
-      ],
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption(
+        "one_time",
+        "299",
+        "USD",
+        "license",
+        "one time",
+      ),
       purchaseConstraints: {
         minUnits: 1,
         maxUnits: 20,
@@ -279,6 +268,252 @@ describe("sales page", () => {
     expect(await screen.findByText(/^one-time$/i)).toBeInTheDocument();
   });
 
+  it("previews completion details and saves optional license data", async () => {
+    vi.mocked(api.upsertSaleActivation).mockResolvedValue({
+      _id: "activation-1",
+      saleId: "sale-1",
+      skuId: "sku-1",
+      customerEmail: "ayesha@example.com",
+      purchaseType: "subscription",
+      billingCyclePurchased: "monthly",
+      fulfillmentMode: "email_based",
+      accessStartDate: "2026-04-01T00:00:00.000Z",
+      accessEndDate: "2026-05-01T00:00:00.000Z",
+      nextRenewalDate: "2026-05-01T00:00:00.000Z",
+      licenseKeyMasked: "********1234",
+      licenseDocument: {
+        fileName: "zoom-license.pdf",
+        uploadedAt: "2026-04-01T00:00:00.000Z",
+      },
+      activationStatus: "completed",
+      notificationStatus: "not_queued",
+      activatedAt: "2026-04-01T00:00:00.000Z",
+      activatedBy: "ops@example.com",
+      notes: "Customer credentials shared with procurement.",
+      createdAt: "2026-04-01T00:00:00.000Z",
+      updatedAt: "2026-04-01T00:00:00.000Z",
+    });
+
+    render(<SalesPage sales={sales} loading={false} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^update$/i })[0]!);
+
+    expect(screen.queryByText(/^fulfillment mode$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^purchase type$/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/^billing cycle purchased$/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/access end date/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/next renewal date/i),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/access start date/i), {
+      target: { value: "2026-04-01" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("2026-05-01")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/license key/i), {
+      target: { value: "ZOOM-LIC-1234" },
+    });
+    fireEvent.change(screen.getByLabelText(/notes/i), {
+      target: { value: "Customer credentials shared with procurement." },
+    });
+
+    const file = new File(["license-body"], "zoom-license.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => new TextEncoder().encode("license-body").buffer,
+    });
+    fireEvent.change(screen.getByLabelText(/license document/i), {
+      target: { files: [file] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /preview completion/i }));
+
+    expect(await screen.findByText(/completion preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/access start date: 2026-04-01/i)).toBeInTheDocument();
+    expect(screen.getByText(/license key: \*+1234/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/license document: zoom-license\.pdf/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /complete sale/i }));
+
+    await waitFor(() => {
+      expect(api.upsertSaleActivation).toHaveBeenCalledWith("sale-1", {
+        purchaseType: "subscription",
+        billingCyclePurchased: "monthly",
+        fulfillmentMode: "email_based",
+        accessStartDate: "2026-04-01",
+        accessEndDate: "2026-05-01",
+        nextRenewalDate: "2026-05-01",
+        licenseKey: "ZOOM-LIC-1234",
+        licenseDocument: {
+          fileName: "zoom-license.pdf",
+          contentType: "application/pdf",
+          contentBase64: "bGljZW5zZS1ib2R5",
+          uploadedAt: undefined,
+        },
+        activationStatus: "completed",
+        notificationStatus: "not_queued",
+        notes: "Customer credentials shared with procurement.",
+      });
+    });
+  });
+
+  it("hides the update action in the activated tab and shows completion details", async () => {
+    vi.mocked(api.getSku).mockResolvedValue({
+      _id: "sku-3",
+      planId: "plan-3",
+      code: "zoom-business-gcc",
+      region: "GCC",
+      seatType: "license_key",
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption(
+        "monthly",
+        "18",
+        "USD",
+        "license",
+      ),
+      purchaseConstraints: {
+        minUnits: 1,
+        maxUnits: 10,
+      },
+      activationTimeline: "Instant",
+      isBillingDisabled: false,
+      createdAt: "2026-03-16T00:00:00.000Z",
+    });
+
+    const activatedSales: SaleListEntry[] = [
+      ...sales,
+      {
+        sale: {
+          _id: "sale-3",
+          skuId: "sku-3",
+          skuCode: "zoom-business-gcc",
+          billingCyclePurchased: "monthly",
+          purchaseType: "subscription",
+          quantity: 1,
+          partner: {
+            name: "Zoftware Reseller",
+            saleReference: "sale-3001",
+          },
+          customer: {
+            name: "Nadia Rahman",
+            email: "nadia@example.com",
+            phone: "+971500000222",
+          },
+          payment: {
+            provider: "stripe",
+            transactionId: "txn-3001",
+            amount: "18",
+            currency: "USD",
+            status: "captured",
+          },
+          createdAt: "2026-03-18T08:00:00.000Z",
+        },
+        sku: {
+          _id: "sku-3",
+          planId: "plan-3",
+          code: "zoom-business-gcc",
+          region: "GCC",
+          seatType: "license_key",
+          purchaseType: "subscription" as const,
+          pricingOption: pricingOption(
+            "monthly",
+            "18",
+            "USD",
+            "license",
+          ),
+          purchaseConstraints: {
+            minUnits: 1,
+            maxUnits: 10,
+          },
+          createdAt: "2026-03-18T00:00:00.000Z",
+        },
+        plan: {
+          _id: "plan-3",
+          productId: "product-3",
+          name: "Business",
+          planType: "standard",
+          createdAt: "2026-03-18T00:00:00.000Z",
+        },
+        product: {
+          _id: "product-3",
+          externalId: "zoom-business",
+          name: "Zoom",
+          vendor: "Zoom",
+          description: "Meetings",
+          logoUrl: "",
+          createdAt: "2026-03-18T00:00:00.000Z",
+        },
+        activation: {
+          _id: "activation-3",
+          saleId: "sale-3",
+          skuId: "sku-3",
+          customerEmail: "nadia@example.com",
+          purchaseType: "subscription",
+          billingCyclePurchased: "monthly",
+          fulfillmentMode: "license_key",
+          accessStartDate: "2026-04-01T00:00:00.000Z",
+          accessEndDate: "2026-05-01T00:00:00.000Z",
+          nextRenewalDate: "2026-05-01T00:00:00.000Z",
+          licenseKeyMasked: "********5678",
+          licenseDocument: {
+            fileName: "zoom-license.pdf",
+            uploadedAt: "2026-04-01T00:00:00.000Z",
+          },
+          activationStatus: "completed",
+          notificationStatus: "queued",
+          activatedAt: "2026-04-01T09:30:00.000Z",
+          activatedBy: "ops@example.com",
+          notificationQueuedAt: "2026-04-01T09:31:00.000Z",
+          notes: "Customer credentials shared with procurement.",
+          createdAt: "2026-04-01T09:30:00.000Z",
+          updatedAt: "2026-04-01T09:31:00.000Z",
+        },
+      },
+    ];
+
+    render(<SalesPage sales={activatedSales} loading={false} />);
+
+    const activatedTab = screen.getByRole("tab", {
+      name: /activated sales \(1\)/i,
+    });
+    fireEvent.mouseDown(activatedTab);
+    fireEvent.click(activatedTab);
+
+    await waitFor(() => {
+      expect(screen.getByText("Zoom")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: /^update$/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /show sku details for zoom/i,
+      }),
+    );
+
+    expect(await screen.findByText(/activation details/i)).toBeInTheDocument();
+    expect(screen.getByText(/method: license key/i)).toBeInTheDocument();
+    expect(screen.getByText(/purchase type: subscription/i)).toBeInTheDocument();
+    expect(screen.getByText(/billing cycle: monthly/i)).toBeInTheDocument();
+    expect(screen.getByText(/key: \*+\d{4}/i)).toBeInTheDocument();
+    expect(screen.getByText(/document: zoom-license\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/uploaded at:/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/mail queued/i).length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/customer credentials shared with procurement\./i),
+    ).toBeInTheDocument();
+  });
+
   it("shows an empty state when no sales exist", () => {
     render(<SalesPage sales={[]} loading={false} />);
 
@@ -290,3 +525,5 @@ describe("sales page", () => {
     ).toBeInTheDocument();
   });
 });
+
+

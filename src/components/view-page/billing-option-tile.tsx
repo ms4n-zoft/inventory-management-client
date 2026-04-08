@@ -7,6 +7,7 @@ import {
   formatBillingCycles,
   formatPriceLine,
   formatPurchaseConstraints,
+  formatSkuPurchaseTypeLabel,
   formatSkuLabel,
 } from "@/lib/catalog";
 import { isStockTrackingEnabled } from "@/lib/billing-option";
@@ -48,7 +49,7 @@ export function BillingOptionTile({
   const [billingDisabled, setBillingDisabled] = useState(
     Boolean(entry.sku.isBillingDisabled),
   );
-  const pricingOptions = entry.sku.pricingOptions ?? [];
+  const pricingOptions = [entry.sku.pricingOption];
   const minimumUnits = entry.sku.purchaseConstraints?.minUnits;
   const maximumUnits = entry.sku.purchaseConstraints?.maxUnits;
   const stockTrackingEnabled = isStockTrackingEnabled(
@@ -109,6 +110,9 @@ export function BillingOptionTile({
           </span>
           <span className="rounded-md border bg-muted/40 px-2 py-1">
             {formatBillingCycles(pricingOptions)}
+          </span>
+          <span className="rounded-md border bg-muted/40 px-2 py-1">
+            {formatSkuPurchaseTypeLabel(entry.sku.purchaseType)}
           </span>
         </div>
 

@@ -50,7 +50,7 @@ describe("app", () => {
           });
         }
 
-        if (url.endsWith("/api/sales")) {
+        if (url.endsWith("/api/v1/sales")) {
           return Promise.resolve({
             ok: true,
             json: async () => [],

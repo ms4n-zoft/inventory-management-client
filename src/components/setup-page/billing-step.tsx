@@ -14,9 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   BillingCycle,
   PricingDetails,
-  PricingDetailsByCycle,
   Region,
   Sku,
+  SkuPurchaseType,
 } from "@/types";
 
 import { SetupStepCard } from "./setup-step-card";
@@ -32,9 +32,11 @@ export function BillingStep({
   existingRegions,
   existingSku,
   generatedSkuCode,
-  billingCycles,
-  onBillingCyclesChange,
-  pricingDetailsByCycle,
+  purchaseType,
+  onPurchaseTypeChange,
+  billingCycle,
+  onBillingCycleChange,
+  pricingDetails,
   onPricingDetailsChange,
   minimumUnits,
   onMinimumUnitsChange,
@@ -53,14 +55,12 @@ export function BillingStep({
   existingRegions: Region[];
   existingSku?: Sku;
   generatedSkuCode: string;
-  billingCycles: BillingCycle[];
-  onBillingCyclesChange: (value: BillingCycle[]) => void;
-  pricingDetailsByCycle: PricingDetailsByCycle;
-  onPricingDetailsChange: (
-    billingCycle: BillingCycle,
-    field: keyof PricingDetails,
-    value: string,
-  ) => void;
+  purchaseType: SkuPurchaseType;
+  onPurchaseTypeChange: (value: SkuPurchaseType) => void;
+  billingCycle: BillingCycle;
+  onBillingCycleChange: (value: BillingCycle) => void;
+  pricingDetails: PricingDetails;
+  onPricingDetailsChange: (field: keyof PricingDetails, value: string) => void;
   minimumUnits: string;
   onMinimumUnitsChange: (value: string) => void;
   maximumUnits: string;
@@ -106,7 +106,7 @@ export function BillingStep({
         step={2}
         icon={PackageIcon}
         title="Review offer details"
-        description="Select one or more regions, then fine-tune each region tab before saving the offer set."
+        description="Select one or more regions, then choose one purchase type and billing cycle per region before saving."
       >
         {selectedProduct ? (
           <FieldGroup>
@@ -155,14 +155,16 @@ export function BillingStep({
                       catalogCode={generatedSkuCode}
                       catalogCodeDescription={
                         existingSku
-                          ? "This regional offer already exists. Saving will update its pricing, constraints, or activation details in place."
+                          ? "This regional offer already exists for the selected billing cycle. Saving will update its pricing, constraints, or activation details in place."
                           : generatedSkuCode
-                            ? "Generated from the product, plan, and active region tab."
+                            ? "Generated from the product, plan, region, and selected billing cycle."
                             : "Choose a plan in step 1 and at least one region here to generate the catalog code."
                       }
-                      billingCycles={billingCycles}
-                      onBillingCyclesChange={onBillingCyclesChange}
-                      pricingDetailsByCycle={pricingDetailsByCycle}
+                      purchaseType={purchaseType}
+                      onPurchaseTypeChange={onPurchaseTypeChange}
+                      billingCycle={billingCycle}
+                      onBillingCycleChange={onBillingCycleChange}
+                      pricingDetails={pricingDetails}
                       onPricingDetailsChange={onPricingDetailsChange}
                       minimumUnits={minimumUnits}
                       onMinimumUnitsChange={onMinimumUnitsChange}
@@ -171,7 +173,8 @@ export function BillingStep({
                       activationTimeline={activationTimeline}
                       onActivationTimelineChange={onActivationTimelineChange}
                       disabled={!detailsReady || loadingPricing}
-                      amountDescription="Required for every billing cycle you keep on the active region tab."
+                      amountDescription="Required for the selected billing cycle on the active region tab."
+                      catalogCodeExists={!!existingSku}
                     />
                   </TabsContent>
                 </Tabs>

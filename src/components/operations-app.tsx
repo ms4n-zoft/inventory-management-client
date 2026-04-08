@@ -406,7 +406,9 @@ export function OperationsApp() {
             />
             <Route
               path="/sales"
-              element={<SalesPage sales={sales} loading={loading} />}
+              element={
+                <SalesPage sales={sales} loading={loading} runAction={runAction} />
+              }
             />
             <Route path="*" element={<NavigateToOverview />} />
           </Routes>

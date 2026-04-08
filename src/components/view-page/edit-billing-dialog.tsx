@@ -13,7 +13,7 @@ import {
 import type {
   BillingCycle,
   PricingDetails,
-  PricingDetailsByCycle,
+  SkuPurchaseType,
 } from "@/types";
 
 import type { ViewSetupEntry } from "./types";
@@ -24,10 +24,12 @@ export function EditBillingDialog({
   onOpenChange,
   region,
   onRegionChange,
+  purchaseType,
+  onPurchaseTypeChange,
   generatedCode,
-  billingCycles,
-  onBillingCyclesChange,
-  pricingDetailsByCycle,
+  billingCycle,
+  onBillingCycleChange,
+  pricingDetails,
   onPricingDetailsChange,
   minimumUnits,
   onMinimumUnitsChange,
@@ -44,15 +46,13 @@ export function EditBillingDialog({
   onOpenChange: (open: boolean) => void;
   region: string;
   onRegionChange: (value: string) => void;
+  purchaseType: SkuPurchaseType;
+  onPurchaseTypeChange: (value: SkuPurchaseType) => void;
   generatedCode: string;
-  billingCycles: BillingCycle[];
-  onBillingCyclesChange: (value: BillingCycle[]) => void;
-  pricingDetailsByCycle: PricingDetailsByCycle;
-  onPricingDetailsChange: (
-    billingCycle: BillingCycle,
-    field: keyof PricingDetails,
-    value: string,
-  ) => void;
+  billingCycle: BillingCycle;
+  onBillingCycleChange: (value: BillingCycle) => void;
+  pricingDetails: PricingDetails;
+  onPricingDetailsChange: (field: keyof PricingDetails, value: string) => void;
   minimumUnits: string;
   onMinimumUnitsChange: (value: string) => void;
   maximumUnits: string;
@@ -88,10 +88,12 @@ export function EditBillingDialog({
               }
               regionDisabled={entry.hasLockedRegion}
               catalogCode={generatedCode}
-              catalogCodeDescription="The code updates automatically from the product, plan, and region."
-              billingCycles={billingCycles}
-              onBillingCyclesChange={onBillingCyclesChange}
-              pricingDetailsByCycle={pricingDetailsByCycle}
+              catalogCodeDescription="The code updates automatically from the product, plan, region, and billing cycle."
+              purchaseType={purchaseType}
+              onPurchaseTypeChange={onPurchaseTypeChange}
+              billingCycle={billingCycle}
+              onBillingCycleChange={onBillingCycleChange}
+              pricingDetails={pricingDetails}
               onPricingDetailsChange={onPricingDetailsChange}
               minimumUnits={minimumUnits}
               onMinimumUnitsChange={onMinimumUnitsChange}
@@ -100,7 +102,7 @@ export function EditBillingDialog({
               activationTimeline={activationTimeline}
               onActivationTimelineChange={onActivationTimelineChange}
               disabled={loading}
-              amountDescription="Keep each billing cycle aligned with the operator-facing MSRP."
+              amountDescription="Keep the selected billing cycle aligned with the operator-facing MSRP."
             />
           </div>
 

@@ -2,12 +2,18 @@ import type {
   AuthSession,
   AuthUser,
   DashboardSnapshot,
+  LicenseDocumentMetadata,
   Plan,
   PricePerUnit,
+  PurchasedBillingCycle,
   PurchaseConstraints,
   Product,
+  PurchaseType,
   SaleListEntry,
+  SaleActivation,
+  SaleFulfillmentMode,
   Sku,
+  SkuPurchaseType,
   SkuCatalogEntry,
 } from "../types";
 import { dispatchAuthExpired, getAccessToken } from "./auth";
@@ -26,10 +32,11 @@ type RequestOptions = {
 function buildHeaders(
   initHeaders?: HeadersInit,
   authToken?: string | null,
+  body?: RequestInit["body"],
 ): { hasAuthorization: boolean; headers: Record<string, string> } {
   const headers = new Headers(initHeaders);
 
-  if (!headers.has("content-type")) {
+  if (typeof body === "string" && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
 
@@ -49,7 +56,11 @@ async function request<T>(
   options?: RequestOptions,
 ): Promise<T> {
   const authToken = options?.auth === false ? null : getAccessToken();
-  const { hasAuthorization, headers } = buildHeaders(init?.headers, authToken);
+  const { hasAuthorization, headers } = buildHeaders(
+    init?.headers,
+    authToken,
+    init?.body,
+  );
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -111,6 +122,28 @@ function normalizePricingOption(pricingOption: PricePerUnit): PricePerUnit {
   };
 }
 
+function resolvePricingOption(input: {
+  pricingOption?: PricePerUnit;
+  pricingOptions?: PricePerUnit[];
+}): PricePerUnit {
+  return (
+    input.pricingOption ??
+    input.pricingOptions?.[0] ?? {
+      billingCycle: "monthly",
+      amount: "",
+      currency: "USD",
+    }
+  );
+}
+
+function inferSkuPurchaseTypeFromPricingOption(
+  pricingOption?: PricePerUnit,
+): SkuPurchaseType {
+  const primaryBillingCycle = pricingOption?.billingCycle;
+
+  return primaryBillingCycle === "one_time" ? "one_time" : "subscription";
+}
+
 function normalizeSaleListEntry(entry: SaleListEntry): SaleListEntry {
   return {
     ...entry,
@@ -129,10 +162,18 @@ function normalizeSaleListEntry(entry: SaleListEntry): SaleListEntry {
 }
 
 function normalizeSku(sku: ApiSku | Sku): Sku {
+  const { pricingOptions: _legacyPricingOptions, ...rest } = sku as ApiSku & {
+    pricingOptions?: PricePerUnit[];
+  };
+  const pricingOption = normalizePricingOption(resolvePricingOption(sku));
+
   return {
-    ...sku,
+    ...rest,
+    purchaseType:
+      sku.purchaseType ??
+      inferSkuPurchaseTypeFromPricingOption(pricingOption),
     isBillingDisabled: Boolean(sku.isBillingDisabled),
-    pricingOptions: sku.pricingOptions.map(normalizePricingOption),
+    pricingOption,
     purchaseConstraints: normalizePurchaseConstraints(sku.purchaseConstraints),
   };
 }
@@ -213,9 +254,12 @@ type ApiPurchaseConstraints = {
   maxUnits: number | "unlimited";
 };
 
-type ApiSku = Omit<Sku, "purchaseConstraints"> & {
+type ApiSku = Omit<Sku, "purchaseConstraints" | "purchaseType" | "pricingOption"> & {
   purchaseConstraints?: ApiPurchaseConstraints;
+  purchaseType?: SkuPurchaseType;
   isBillingDisabled?: boolean;
+  pricingOption?: PricePerUnit;
+  pricingOptions?: PricePerUnit[];
 };
 
 type ApiCatalogEntryResponse = Omit<CatalogEntryResponse, "sku"> & {
@@ -275,7 +319,32 @@ export const api = {
       await request<ApiDashboardSnapshot>("/api/dashboard"),
     ),
   getSales: async () =>
-    (await request<SaleListEntry[]>("/api/sales")).map(normalizeSaleListEntry),
+    (await request<SaleListEntry[]>("/api/v1/sales")).map(
+      normalizeSaleListEntry,
+    ),
+  upsertSaleActivation: async (
+    saleId: string,
+    payload: {
+      purchaseType: PurchaseType;
+      billingCyclePurchased: PurchasedBillingCycle;
+      fulfillmentMode: SaleFulfillmentMode;
+      accessStartDate?: string;
+      accessEndDate?: string;
+      nextRenewalDate?: string;
+      licenseKey?: string;
+      licenseDocument?: LicenseDocumentMetadata & {
+        contentType?: string;
+        contentBase64?: string;
+      };
+      activationStatus?: "pending" | "processing" | "completed" | "failed";
+      notificationStatus?: "not_queued" | "queued" | "failed";
+      notes?: string;
+    },
+  ) =>
+    request<SaleActivation>(`/api/v1/sales/${saleId}/activation`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
   getSkus: async () =>
     (await request<ApiSkuCatalogEntry[]>("/api/skus")).map(
       normalizeSkuCatalogEntry,
@@ -321,7 +390,8 @@ export const api = {
       code: string;
       region: "GCC" | "INDIA";
       seatType: "seat" | "license_key";
-      pricingOptions: PricePerUnit[];
+      purchaseType: SkuPurchaseType;
+      pricingOption: PricePerUnit;
       purchaseConstraints?: PurchaseConstraints;
       activationTimeline?: string;
     };
@@ -344,7 +414,8 @@ export const api = {
     code: string;
     region: "GCC" | "INDIA";
     seatType: "seat" | "license_key";
-    pricingOptions: PricePerUnit[];
+    purchaseType: SkuPurchaseType;
+    pricingOption: PricePerUnit;
     purchaseConstraints?: PurchaseConstraints;
     activationTimeline?: string;
   }) =>
@@ -358,7 +429,8 @@ export const api = {
       code: string;
       region: "GCC" | "INDIA";
       seatType: "seat" | "license_key";
-      pricingOptions: PricePerUnit[];
+      purchaseType: SkuPurchaseType;
+      pricingOption: PricePerUnit;
       purchaseConstraints?: PurchaseConstraints;
       activationTimeline?: string;
       isBillingDisabled?: boolean;

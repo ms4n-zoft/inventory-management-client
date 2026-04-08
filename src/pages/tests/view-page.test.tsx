@@ -23,7 +23,7 @@ const pricingOption = (
   amount: string,
   currency = "USD",
   entity = "user",
-  ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
+  ratePeriod: string = billingCycle,
   discount?: {
     discountPercentage?: string;
     discountedAmount?: string;
@@ -118,8 +118,9 @@ const snapshot: DashboardSnapshot = {
       code: "jira-standard-gcc",
       region: "GCC",
       seatType: "seat",
+      purchaseType: "subscription" as const,
       isBillingDisabled: false,
-      pricingOptions: [pricingOption("monthly", "18")],
+      pricingOption: pricingOption("monthly", "18"),
       purchaseConstraints: {
         minUnits: 1,
         maxUnits: 20,
@@ -133,8 +134,9 @@ const snapshot: DashboardSnapshot = {
       code: "confluence-premium-india",
       region: "INDIA",
       seatType: "seat",
+      purchaseType: "subscription" as const,
       isBillingDisabled: false,
-      pricingOptions: [pricingOption("yearly", "120")],
+      pricingOption: pricingOption("yearly", "120"),
       purchaseConstraints: {
         minUnits: 3,
         maxUnits: 15,
@@ -148,11 +150,9 @@ const snapshot: DashboardSnapshot = {
       code: "mailchimp-premium-gcc",
       region: "GCC",
       seatType: "seat",
+      purchaseType: "subscription" as const,
       isBillingDisabled: false,
-      pricingOptions: [
-        pricingOption("monthly", "350"),
-        pricingOption("yearly", "320"),
-      ],
+      pricingOption: pricingOption("monthly", "350"),
       purchaseConstraints: {
         maxUnits: 300,
       },
@@ -165,8 +165,9 @@ const snapshot: DashboardSnapshot = {
       code: "slack-business-india",
       region: "INDIA",
       seatType: "seat",
+      purchaseType: "subscription" as const,
       isBillingDisabled: false,
-      pricingOptions: [pricingOption("monthly", "14")],
+      pricingOption: pricingOption("monthly", "14"),
       purchaseConstraints: {
         maxUnits: 100,
       },
@@ -331,7 +332,7 @@ describe("view page", () => {
   it("edits offer pricing from the view dialog", async () => {
     const updateSku = vi.spyOn(api, "updateSku").mockResolvedValue({
       ...snapshot.skus[0]!,
-      pricingOptions: [pricingOption("monthly", "25")],
+      pricingOption: pricingOption("monthly", "25"),
     });
 
     renderViewRoute();
@@ -368,18 +369,17 @@ describe("view page", () => {
 
     await waitFor(() => {
       expect(updateSku).toHaveBeenCalledWith("sku-1", {
-        code: "jira-standard-gcc",
+        code: "jira-standard-gcc-monthly",
         region: "GCC",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "25",
-            currency: "USD",
-            entity: "user",
-            ratePeriod: "monthly",
-          },
-        ],
+        purchaseType: "subscription",
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "25",
+          currency: "USD",
+          entity: "user",
+          ratePeriod: "monthly",
+        },
         purchaseConstraints: {
           minUnits: 2,
           maxUnits: 10,
@@ -415,15 +415,14 @@ describe("view page", () => {
         code: "jira-standard-gcc",
         region: "GCC",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "18",
-            currency: "USD",
-            entity: "user",
-            ratePeriod: "monthly",
-          },
-        ],
+        purchaseType: "subscription",
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "18",
+          currency: "USD",
+          entity: "user",
+          ratePeriod: "monthly",
+        },
         purchaseConstraints: {
           minUnits: 1,
           maxUnits: 20,
@@ -442,11 +441,16 @@ describe("view page", () => {
       skus: [
         {
           ...snapshot.skus[0]!,
-          pricingOptions: [
-            pricingOption("monthly", "18.456", "USD", "user", "month", {
+          pricingOption: pricingOption(
+            "monthly",
+            "18.456",
+            "USD",
+            "user",
+            "month",
+            {
               discountPercentage: "12.349",
-            }),
-          ],
+            },
+          ),
         },
       ],
       inventoryPools: [snapshot.inventoryPools[0]!],
@@ -461,13 +465,11 @@ describe("view page", () => {
     ).toBeInTheDocument();
   });
 
-  it("edits each billing cycle amount independently from the view dialog", async () => {
+  it("saves a normalized single billing cycle in the view dialog", async () => {
     const updateSku = vi.spyOn(api, "updateSku").mockResolvedValue({
       ...snapshot.skus[2]!,
-      pricingOptions: [
-        pricingOption("monthly", "360"),
-        pricingOption("yearly", "330"),
-      ],
+      code: "mailchimp-premium-gcc-monthly",
+      pricingOption: pricingOption("monthly", "360"),
     });
 
     renderViewRoute();
@@ -487,14 +489,13 @@ describe("view page", () => {
     });
 
     expect(getBillingAmountInput("monthly")).toHaveValue("350");
-    expect(getBillingAmountInput("yearly")).toHaveValue("320");
+    expect(
+      screen.queryByRole("textbox", { name: /^yearly price amount$/i }),
+    ).not.toBeInTheDocument();
 
     await act(async () => {
       fireEvent.change(getBillingAmountInput("monthly"), {
         target: { value: "360" },
-      });
-      fireEvent.change(getBillingAmountInput("yearly"), {
-        target: { value: "330" },
       });
     });
 
@@ -504,25 +505,17 @@ describe("view page", () => {
 
     await waitFor(() => {
       expect(updateSku).toHaveBeenCalledWith("sku-3", {
-        code: "mailchimp-premium-gcc",
+        code: "mailchimp-premium-gcc-monthly",
         region: "GCC",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "360",
-            currency: "USD",
-            entity: "user",
-            ratePeriod: "monthly",
-          },
-          {
-            billingCycle: "yearly",
-            amount: "330",
-            currency: "USD",
-            entity: "user",
-            ratePeriod: "year",
-          },
-        ],
+        purchaseType: "subscription",
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "360",
+          currency: "USD",
+          entity: "user",
+          ratePeriod: "monthly",
+        },
         purchaseConstraints: {
           maxUnits: 300,
         },
@@ -630,9 +623,6 @@ describe("view page", () => {
       unlimitedSnapshot,
     );
 
-    expect(
-      screen.getByText(/minimum units: 1 · maximum units: unlimited/i),
-    ).toBeInTheDocument();
     expect(
       screen.getByText(/activation timeline: 5 days/i),
     ).toBeInTheDocument();

@@ -14,34 +14,76 @@ import type {
   PricingDetailsByCycle,
   PurchaseConstraints,
   Region,
+  SkuPurchaseType,
 } from "@/types";
 
 const preferredBillingCycleOrder: BillingCycle[] = [
   "monthly",
+  "quarterly",
+  "half_yearly",
   "yearly",
   "one_time",
 ];
 
 const defaultRatePeriodsByCycle: Record<BillingCycle, string> = {
-  monthly: "month",
-  yearly: "year",
-  one_time: "one time",
+  monthly: "monthly",
+  quarterly: "quarterly",
+  half_yearly: "half_yearly",
+  yearly: "yearly",
+  one_time: "one_time",
 };
 
-const sharedPricingFields: Array<
-  keyof Pick<PricingDetails, "currency" | "entity">
-> = ["currency", "entity"];
+export function defaultRatePeriodForBillingCycle(
+  billingCycle: BillingCycle,
+) {
+  return defaultRatePeriodsByCycle[billingCycle];
+}
 
 const preferredRegionOrder: Region[] = ["GCC", "INDIA"];
-const defaultChargedPer = "user";
+export const defaultChargedPer = "user";
+
+export const subscriptionBillingCycles: BillingCycle[] = [
+  "monthly",
+  "quarterly",
+  "half_yearly",
+  "yearly",
+];
+
+export const purchaseTypeOptions: Array<{
+  value: SkuPurchaseType;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "subscription",
+    label: "Subscription",
+    description: "Recurring monthly, quarterly, half-yearly, or yearly pricing.",
+  },
+  {
+    value: "one_time",
+    label: "Perpetual license",
+    description: "Single non-recurring purchase charged once.",
+  },
+];
 
 export const billingCycleOptions: Array<{
   value: BillingCycle;
   label: string;
+  purchaseType: SkuPurchaseType;
 }> = [
-  { value: "monthly", label: "monthly" },
-  { value: "yearly", label: "yearly" },
-  { value: "one_time", label: "one time" },
+  { value: "monthly", label: "Monthly", purchaseType: "subscription" },
+  { value: "quarterly", label: "Quarterly", purchaseType: "subscription" },
+  {
+    value: "half_yearly",
+    label: "Half-yearly",
+    purchaseType: "subscription",
+  },
+  { value: "yearly", label: "Yearly", purchaseType: "subscription" },
+  {
+    value: "one_time",
+    label: "Perpetual license",
+    purchaseType: "one_time",
+  },
 ];
 
 export const commonRegionOptions = preferredRegionOrder.map((region) => ({
@@ -52,11 +94,6 @@ export const commonRegionOptions = preferredRegionOrder.map((region) => ({
 export const commonCurrencyOptions = ["USD", "INR"].map((currency) => ({
   value: currency,
   label: currency,
-}));
-
-export const commonChargedPerOptions = [defaultChargedPer].map((entity) => ({
-  value: entity,
-  label: entity,
 }));
 
 export function orderBillingCycles(
@@ -75,28 +112,6 @@ export function orderRegions(regions: Region[]): Region[] {
   return preferredRegionOrder.filter((region) => uniqueRegions.has(region));
 }
 
-export function toggleBillingCycleSelection(
-  currentSelection: BillingCycle[],
-  nextSelection: BillingCycle,
-): BillingCycle[] {
-  const orderedSelection = orderBillingCycles(currentSelection);
-
-  if (orderedSelection.includes(nextSelection)) {
-    return orderedSelection.filter(
-      (billingCycle) => billingCycle !== nextSelection,
-    );
-  }
-
-  if (nextSelection === "one_time") {
-    return ["one_time"];
-  }
-
-  return orderBillingCycles([
-    ...orderedSelection.filter((billingCycle) => billingCycle !== "one_time"),
-    nextSelection,
-  ]);
-}
-
 export function toggleRegionSelection(
   currentSelection: Region[],
   nextSelection: Region,
@@ -110,27 +125,48 @@ export function toggleRegionSelection(
   return orderRegions([...orderedSelection, nextSelection]);
 }
 
-export function createEmptyPricingDetails(): PricingDetails {
-  const emptyPricePerUnit = createEmptyPricePerUnit();
-
-  return {
-    amount: emptyPricePerUnit.amount,
-    currency: emptyPricePerUnit.currency,
-    entity: emptyPricePerUnit.entity ?? defaultChargedPer,
-    ratePeriod: emptyPricePerUnit.ratePeriod ?? "",
-    discountPercentage: emptyPricePerUnit.discountPercentage ?? "",
-    discountedAmount: emptyPricePerUnit.discountedAmount ?? "",
-  };
+export function defaultBillingCycleForPurchaseType(
+  purchaseType: SkuPurchaseType,
+): BillingCycle {
+  return purchaseType === "one_time" ? "one_time" : "monthly";
 }
 
-function clonePricingDetailsByCycle(
-  pricingDetailsByCycle: PricingDetailsByCycle,
-): PricingDetailsByCycle {
-  return {
-    monthly: { ...pricingDetailsByCycle.monthly },
-    yearly: { ...pricingDetailsByCycle.yearly },
-    one_time: { ...pricingDetailsByCycle.one_time },
-  };
+export function inferSkuPurchaseTypeFromBillingCycle(
+  billingCycle: BillingCycle,
+): SkuPurchaseType {
+  return billingCycle === "one_time" ? "one_time" : "subscription";
+}
+
+export function isValidBillingCycleForPurchaseType(input: {
+  purchaseType: SkuPurchaseType;
+  billingCycle: BillingCycle;
+}) {
+  if (input.purchaseType === "one_time") {
+    return input.billingCycle === "one_time";
+  }
+
+  return input.billingCycle !== "one_time";
+}
+
+export function normalizeBillingCycleForPurchaseType(
+  purchaseType: SkuPurchaseType,
+  billingCycle?: BillingCycle,
+): BillingCycle {
+  if (!billingCycle) {
+    return defaultBillingCycleForPurchaseType(purchaseType);
+  }
+
+  return isValidBillingCycleForPurchaseType({ purchaseType, billingCycle })
+    ? billingCycle
+    : defaultBillingCycleForPurchaseType(purchaseType);
+}
+
+export function billingCycleOptionsForPurchaseType(
+  purchaseType: SkuPurchaseType,
+) {
+  return billingCycleOptions.filter(
+    (option) => option.purchaseType === purchaseType,
+  );
 }
 
 function trimOrEmpty(value?: string): string {
@@ -209,59 +245,6 @@ function syncDiscountDetails(
   };
 }
 
-function isDiscountUnset(
-  pricingDetails: Pick<
-    PricingDetails,
-    "discountPercentage" | "discountedAmount"
-  >,
-): boolean {
-  return (
-    trimOrEmpty(pricingDetails.discountPercentage).length === 0 &&
-    trimOrEmpty(pricingDetails.discountedAmount).length === 0
-  );
-}
-
-function sameDiscountState(
-  left: Pick<PricingDetails, "discountPercentage" | "discountedAmount">,
-  right: Pick<PricingDetails, "discountPercentage" | "discountedAmount">,
-): boolean {
-  const normalizedLeftDiscountPercentage =
-    normalizePercentageValue(left.discountPercentage) ??
-    trimOrEmpty(left.discountPercentage);
-  const normalizedRightDiscountPercentage =
-    normalizePercentageValue(right.discountPercentage) ??
-    trimOrEmpty(right.discountPercentage);
-  const normalizedLeftDiscountedAmount =
-    normalizeMoneyAmount(left.discountedAmount) ??
-    trimOrEmpty(left.discountedAmount);
-  const normalizedRightDiscountedAmount =
-    normalizeMoneyAmount(right.discountedAmount) ??
-    trimOrEmpty(right.discountedAmount);
-
-  return (
-    normalizedLeftDiscountPercentage === normalizedRightDiscountPercentage &&
-    normalizedLeftDiscountedAmount === normalizedRightDiscountedAmount
-  );
-}
-
-function buildPricingDetailsWithMirroredDiscount(
-  source: Pick<PricingDetails, "discountPercentage">,
-  target: PricingDetails,
-): PricingDetails {
-  const normalizedDiscountPercentage =
-    normalizePercentageValue(source.discountPercentage) ??
-    trimOrEmpty(source.discountPercentage);
-
-  return syncDiscountDetails(
-    {
-      ...target,
-      discountPercentage: normalizedDiscountPercentage,
-      discountedAmount: "",
-    },
-    "discountPercentage",
-  );
-}
-
 function buildDiscountFields(
   pricePerUnit: Pick<
     PricePerUnit,
@@ -315,49 +298,19 @@ function hasValidDiscountFields(
   );
 }
 
-export function autoPopulateYearlyAmount(monthlyAmount: string): string {
-  const normalizedAmount = monthlyAmount.trim();
+export function createEmptyPricingDetails(
+  billingCycle: BillingCycle = "monthly",
+): PricingDetails {
+  const emptyPricePerUnit = createEmptyPricePerUnit(billingCycle);
 
-  if (!/^\d+(?:\.\d+)?$/.test(normalizedAmount)) {
-    return "";
-  }
-
-  const [wholePart, fractionPart = ""] = normalizedAmount.split(".");
-  const scale = BigInt(`1${"0".repeat(fractionPart.length)}`);
-  const integerValue = BigInt(`${wholePart}${fractionPart}`);
-  const yearlyValue = integerValue * 12n;
-
-  if (fractionPart.length === 0) {
-    return yearlyValue.toString();
-  }
-
-  const paddedValue = yearlyValue
-    .toString()
-    .padStart(fractionPart.length + 1, "0");
-  const integerDigits = paddedValue.slice(0, -fractionPart.length);
-  const fractionalDigits = paddedValue
-    .slice(-fractionPart.length)
-    .replace(/0+$/, "");
-
-  const yearlyAmount =
-    fractionalDigits.length > 0
-      ? `${integerDigits}.${fractionalDigits}`
-      : integerDigits;
-
-  return normalizeMoneyAmount(yearlyAmount) ?? yearlyAmount;
-}
-
-function amountFromSeedForCycle(
-  billingCycle: BillingCycle,
-  seed?: PricePerUnit,
-): string {
-  if (!seed) return "";
-  if (seed.billingCycle === billingCycle) return seed.amount;
-  if (seed.billingCycle === "monthly" && billingCycle === "yearly") {
-    return autoPopulateYearlyAmount(seed.amount);
-  }
-
-  return "";
+  return {
+    amount: emptyPricePerUnit.amount,
+    currency: emptyPricePerUnit.currency,
+    entity: emptyPricePerUnit.entity ?? defaultChargedPer,
+    ratePeriod: emptyPricePerUnit.ratePeriod ?? "",
+    discountPercentage: emptyPricePerUnit.discountPercentage ?? "",
+    discountedAmount: emptyPricePerUnit.discountedAmount ?? "",
+  };
 }
 
 function createPricingDetailsForCycle(
@@ -365,21 +318,18 @@ function createPricingDetailsForCycle(
   seed?: PricePerUnit,
 ): PricingDetails {
   return syncDiscountDetails({
-    amount: amountFromSeedForCycle(billingCycle, seed),
+    amount: seed?.amount ?? "",
     currency: seed?.currency ?? "USD",
-    entity: seed?.entity?.trim() || defaultChargedPer,
-    ratePeriod:
-      (seed?.billingCycle === billingCycle ? seed.ratePeriod : undefined) ??
-      (seed ? defaultRatePeriodsByCycle[billingCycle] : ""),
-    discountPercentage:
-      seed?.billingCycle === billingCycle
-        ? (seed.discountPercentage?.trim() ?? "")
-        : "",
-    discountedAmount:
-      seed?.billingCycle === billingCycle
-        ? (seed.discountedAmount?.trim() ?? "")
-        : "",
+    entity: defaultChargedPer,
+    ratePeriod: defaultRatePeriodsByCycle[billingCycle],
+    discountPercentage: seed?.discountPercentage?.trim() ?? "",
+    discountedAmount: seed?.discountedAmount?.trim() ?? "",
   });
+}
+
+export function createPricingDetails(seed?: PricePerUnit): PricingDetails {
+  const billingCycle = seed?.billingCycle ?? "monthly";
+  return createPricingDetailsForCycle(billingCycle, seed);
 }
 
 export function createPricingDetailsByCycle(
@@ -387,124 +337,29 @@ export function createPricingDetailsByCycle(
 ): PricingDetailsByCycle {
   return {
     monthly: createPricingDetailsForCycle("monthly", seed),
+    quarterly: createPricingDetailsForCycle("quarterly", seed),
+    half_yearly: createPricingDetailsForCycle("half_yearly", seed),
     yearly: createPricingDetailsForCycle("yearly", seed),
     one_time: createPricingDetailsForCycle("one_time", seed),
   };
 }
 
-export function sharedPricingDetailsFromCycleDetails(input: {
-  billingCycles: BillingCycle[];
-  pricingDetailsByCycle: PricingDetailsByCycle;
-}): Pick<PricingDetails, "currency" | "entity"> {
-  const primaryBillingCycle =
-    orderBillingCycles(input.billingCycles)[0] ?? "monthly";
-  const primaryPricingDetails =
-    input.pricingDetailsByCycle[primaryBillingCycle];
-
+export function syncPricingDetailsForBillingCycle(input: {
+  pricingDetails: PricingDetails;
+  nextBillingCycle: BillingCycle;
+}): PricingDetails {
   return {
-    currency: primaryPricingDetails.currency,
-    entity: primaryPricingDetails.entity,
+    ...input.pricingDetails,
+    entity: defaultChargedPer,
+    ratePeriod: defaultRatePeriodsByCycle[input.nextBillingCycle],
   };
 }
 
-export function syncPricingDetailsByBillingCycles(input: {
-  billingCycles: BillingCycle[];
-  pricingDetailsByCycle: PricingDetailsByCycle;
-}): PricingDetailsByCycle {
-  const selectedBillingCycles = orderBillingCycles(input.billingCycles);
-  const nextPricingDetailsByCycle = clonePricingDetailsByCycle(
-    input.pricingDetailsByCycle,
-  );
-
-  if (selectedBillingCycles.length === 0) {
-    return nextPricingDetailsByCycle;
-  }
-
-  const primaryPricingDetails =
-    nextPricingDetailsByCycle[selectedBillingCycles[0]!];
-
-  for (const billingCycle of selectedBillingCycles) {
-    nextPricingDetailsByCycle[billingCycle] = {
-      ...nextPricingDetailsByCycle[billingCycle],
-      currency: primaryPricingDetails.currency,
-      entity: primaryPricingDetails.entity,
-      ratePeriod:
-        nextPricingDetailsByCycle[billingCycle].ratePeriod ||
-        defaultRatePeriodsByCycle[billingCycle],
-    };
-  }
-
-  if (
-    selectedBillingCycles.includes("monthly") &&
-    selectedBillingCycles.includes("yearly")
-  ) {
-    const nextYearlyAmount = autoPopulateYearlyAmount(
-      nextPricingDetailsByCycle.monthly.amount,
-    );
-
-    if (
-      nextPricingDetailsByCycle.yearly.amount.trim().length === 0 &&
-      nextYearlyAmount
-    ) {
-      nextPricingDetailsByCycle.yearly = syncDiscountDetails({
-        ...nextPricingDetailsByCycle.yearly,
-        amount: nextYearlyAmount,
-      });
-    }
-
-    if (
-      !isDiscountUnset(nextPricingDetailsByCycle.monthly) &&
-      isDiscountUnset(nextPricingDetailsByCycle.yearly)
-    ) {
-      nextPricingDetailsByCycle.yearly =
-        buildPricingDetailsWithMirroredDiscount(
-          nextPricingDetailsByCycle.monthly,
-          nextPricingDetailsByCycle.yearly,
-        );
-    }
-  }
-
-  for (const billingCycle of selectedBillingCycles) {
-    nextPricingDetailsByCycle[billingCycle] = syncDiscountDetails(
-      nextPricingDetailsByCycle[billingCycle],
-    );
-  }
-
-  return nextPricingDetailsByCycle;
-}
-
 export function applyPricingDetailsChange(input: {
-  billingCycles: BillingCycle[];
-  pricingDetailsByCycle: PricingDetailsByCycle;
-  billingCycle: BillingCycle;
+  pricingDetails: PricingDetails;
   field: keyof PricingDetails;
   value: string;
-}): PricingDetailsByCycle {
-  const nextPricingDetailsByCycle = clonePricingDetailsByCycle(
-    input.pricingDetailsByCycle,
-  );
-  const selectedBillingCycles = orderBillingCycles(input.billingCycles);
-
-  if (
-    sharedPricingFields.includes(
-      input.field as keyof Pick<PricingDetails, "currency" | "entity">,
-    )
-  ) {
-    const targetBillingCycles =
-      selectedBillingCycles.length > 0
-        ? selectedBillingCycles
-        : [input.billingCycle];
-
-    for (const billingCycle of targetBillingCycles) {
-      nextPricingDetailsByCycle[billingCycle] = {
-        ...nextPricingDetailsByCycle[billingCycle],
-        [input.field]: input.value,
-      };
-    }
-
-    return nextPricingDetailsByCycle;
-  }
-
+}): PricingDetails {
   const syncSource =
     input.field === "amount" ||
     input.field === "discountPercentage" ||
@@ -512,90 +367,36 @@ export function applyPricingDetailsChange(input: {
       ? input.field
       : undefined;
 
-  nextPricingDetailsByCycle[input.billingCycle] = syncDiscountDetails(
+  return syncDiscountDetails(
     {
-      ...nextPricingDetailsByCycle[input.billingCycle],
+      ...input.pricingDetails,
       [input.field]: input.value,
     },
     syncSource,
   );
+}
 
-  if (
-    input.field === "amount" &&
-    input.billingCycle === "monthly" &&
-    selectedBillingCycles.includes("yearly")
-  ) {
-    const previousAutoYearlyAmount = autoPopulateYearlyAmount(
-      input.pricingDetailsByCycle.monthly.amount,
-    );
-    const nextAutoYearlyAmount = autoPopulateYearlyAmount(input.value);
-    const currentYearlyAmount =
-      input.pricingDetailsByCycle.yearly.amount.trim();
-
-    if (
-      currentYearlyAmount.length === 0 ||
-      (previousAutoYearlyAmount.length > 0 &&
-        currentYearlyAmount === previousAutoYearlyAmount)
-    ) {
-      nextPricingDetailsByCycle.yearly = syncDiscountDetails({
-        ...nextPricingDetailsByCycle.yearly,
-        amount: nextAutoYearlyAmount,
-      });
-    }
-  }
-
-  if (
-    (input.field === "discountPercentage" ||
-      input.field === "discountedAmount") &&
-    input.billingCycle === "monthly" &&
-    selectedBillingCycles.includes("yearly")
-  ) {
-    const previousAutoYearlyDiscount = buildPricingDetailsWithMirroredDiscount(
-      syncDiscountDetails(input.pricingDetailsByCycle.monthly),
-      input.pricingDetailsByCycle.yearly,
-    );
-    const currentYearlyDetails = input.pricingDetailsByCycle.yearly;
-
-    if (
-      isDiscountUnset(currentYearlyDetails) ||
-      sameDiscountState(currentYearlyDetails, previousAutoYearlyDiscount)
-    ) {
-      nextPricingDetailsByCycle.yearly =
-        buildPricingDetailsWithMirroredDiscount(
-          nextPricingDetailsByCycle.monthly,
-          nextPricingDetailsByCycle.yearly,
-        );
-    }
-  }
-
-  return nextPricingDetailsByCycle;
+export function pricingDetailsFromPricingOption(
+  pricingOption?: PricePerUnit,
+): PricingDetails {
+  return createPricingDetails(pricingOption ?? createEmptyPricePerUnit());
 }
 
 export function pricingDetailsFromPricingOptions(
   pricingOptions: PricePerUnit[],
 ): PricingDetails {
-  const primaryPricingOption = pricingOptions[0] ?? createEmptyPricePerUnit();
-
-  return syncDiscountDetails({
-    amount: primaryPricingOption.amount,
-    currency: primaryPricingOption.currency,
-    entity: primaryPricingOption.entity?.trim() || defaultChargedPer,
-    ratePeriod: primaryPricingOption.ratePeriod ?? "",
-    discountPercentage: primaryPricingOption.discountPercentage?.trim() ?? "",
-    discountedAmount: primaryPricingOption.discountedAmount?.trim() ?? "",
-  });
+  return pricingDetailsFromPricingOption(pricingOptions[0]);
 }
 
 export function pricingDetailsByCycleFromPricingOptions(
   pricingOptions: PricePerUnit[],
 ): PricingDetailsByCycle {
-  const primaryPricingOption = pricingOptions[0];
-  const pricingDetailsByCycle =
-    createPricingDetailsByCycle(primaryPricingOption);
+  const pricingDetailsByCycle = createPricingDetailsByCycle(pricingOptions[0]);
 
   for (const pricingOption of pricingOptions) {
-    pricingDetailsByCycle[pricingOption.billingCycle] =
-      createPricingDetailsForCycle(pricingOption.billingCycle, pricingOption);
+    pricingDetailsByCycle[pricingOption.billingCycle] = createPricingDetails(
+      pricingOption,
+    );
   }
 
   return pricingDetailsByCycle;
@@ -610,17 +411,24 @@ export function billingCyclesFromPricingOptions(
 }
 
 export function buildPricingOptionsFromDetails(input: {
-  billingCycles: BillingCycle[];
+  billingCycle: BillingCycle;
   pricingDetails: PricingDetails;
 }): PricePerUnit[] {
-  return orderBillingCycles(input.billingCycles).map((billingCycle) => ({
-    billingCycle,
+  return [buildPricingOptionFromDetails(input)];
+}
+
+export function buildPricingOptionFromDetails(input: {
+  billingCycle: BillingCycle;
+  pricingDetails: PricingDetails;
+}): PricePerUnit {
+  return {
+    billingCycle: input.billingCycle,
     amount: input.pricingDetails.amount,
     currency: input.pricingDetails.currency,
-    entity: input.pricingDetails.entity,
-    ratePeriod: input.pricingDetails.ratePeriod,
+    entity: defaultChargedPer,
+    ratePeriod: defaultRatePeriodsByCycle[input.billingCycle],
     ...buildDiscountFields(input.pricingDetails),
-  }));
+  };
 }
 
 export function buildPricingOptionsFromCycleDetails(input: {
@@ -634,8 +442,8 @@ export function buildPricingOptionsFromCycleDetails(input: {
       billingCycle,
       amount: pricingDetails.amount,
       currency: pricingDetails.currency,
-      entity: pricingDetails.entity,
-      ratePeriod: pricingDetails.ratePeriod,
+      entity: defaultChargedPer,
+      ratePeriod: defaultRatePeriodsByCycle[billingCycle],
       ...buildDiscountFields(pricingDetails),
     };
   });
@@ -649,20 +457,22 @@ export function createEmptyPricePerUnit(
     amount: "",
     currency: "USD",
     entity: defaultChargedPer,
-    ratePeriod: "",
+    ratePeriod: defaultRatePeriodsByCycle[billingCycle],
   };
 }
 
 export function pricePerUnitFromPlan(plan: ProductPricingPlan): PricePerUnit {
+  const billingCycle = suggestedBillingPeriod(plan) ?? "monthly";
+
   return {
-    billingCycle: suggestedBillingPeriod(plan) ?? "monthly",
+    billingCycle,
     amount:
       plan.isPlanFree || plan.plan.trim().toLowerCase() === "free"
         ? "0"
         : (plan.amount ?? ""),
     currency: plan.currency ?? "USD",
-    entity: plan.entity?.trim() || defaultChargedPer,
-    ratePeriod: plan.period ?? "",
+    entity: defaultChargedPer,
+    ratePeriod: defaultRatePeriodsByCycle[billingCycle],
   };
 }
 
@@ -673,6 +483,16 @@ export function suggestedBillingPeriod(
 
   if (!normalizedPeriod) return undefined;
   if (normalizedPeriod.startsWith("month")) return "monthly";
+  if (normalizedPeriod.startsWith("quarter")) return "quarterly";
+  if (
+    normalizedPeriod.startsWith("half") ||
+    normalizedPeriod === "semiannual" ||
+    normalizedPeriod === "semi-annually" ||
+    normalizedPeriod === "semi-annually" ||
+    normalizedPeriod.includes("6 month")
+  ) {
+    return "half_yearly";
+  }
   if (
     normalizedPeriod.startsWith("year") ||
     normalizedPeriod === "annual" ||
@@ -680,7 +500,11 @@ export function suggestedBillingPeriod(
   ) {
     return "yearly";
   }
-  if (normalizedPeriod.startsWith("one") || normalizedPeriod === "lifetime") {
+  if (
+    normalizedPeriod.startsWith("one") ||
+    normalizedPeriod === "lifetime" ||
+    normalizedPeriod === "perpetual"
+  ) {
     return "one_time";
   }
 
@@ -695,53 +519,51 @@ export function normalizePricePerUnit(
     amount: pricePerUnit.amount.trim(),
     currency: pricePerUnit.currency.trim().toUpperCase(),
     entity: pricePerUnit.entity?.trim() || undefined,
-    ratePeriod: pricePerUnit.ratePeriod?.trim() || undefined,
+    ratePeriod:
+      pricePerUnit.ratePeriod?.trim() ||
+      defaultRatePeriodsByCycle[pricePerUnit.billingCycle],
     ...buildDiscountFields(pricePerUnit),
   };
+}
+
+export function normalizePricingOptionForComparison(
+  pricingOption: PricePerUnit,
+): PricePerUnit {
+  return {
+    ...normalizePricePerUnit(pricingOption),
+    entity: defaultChargedPer,
+    ratePeriod: defaultRatePeriodsByCycle[pricingOption.billingCycle],
+  };
+}
+
+export function normalizePricingOptionsForComparison(
+  pricingOptions: PricePerUnit[],
+): PricePerUnit[] {
+  return pricingOptions.length === 0
+    ? []
+    : [normalizePricingOptionForComparison(pricingOptions[0]!)];
+}
+
+export function hasValidPricingOption(pricingOption: PricePerUnit): boolean {
+  return (
+    pricingOption.amount.trim().length > 0 &&
+    pricingOption.currency.trim().length > 0 &&
+    hasValidDiscountFields(pricingOption)
+  );
 }
 
 export function hasValidPricingOptions(
   pricingOptions: PricePerUnit[],
 ): boolean {
-  if (pricingOptions.length === 0) {
-    return false;
-  }
-
-  const uniqueBillingCycles = new Set(
-    pricingOptions.map((pricingOption) => pricingOption.billingCycle),
-  );
-
-  return (
-    uniqueBillingCycles.size === pricingOptions.length &&
-    pricingOptions.every(
-      (pricingOption) =>
-        pricingOption.amount.trim().length > 0 &&
-        pricingOption.currency.trim().length > 0 &&
-        hasValidDiscountFields(pricingOption),
-    )
-  );
+  return pricingOptions.length === 1 && hasValidPricingOption(pricingOptions[0]!);
 }
 
 export function normalizePricingOptions(
   pricingOptions: PricePerUnit[],
 ): PricePerUnit[] {
-  const pricingOptionsByCycle = new Map(
-    pricingOptions.map((option) => [option.billingCycle, option]),
-  );
-
-  return orderBillingCycles([...pricingOptionsByCycle.keys()]).map(
-    (billingCycle) =>
-      normalizePricePerUnit(pricingOptionsByCycle.get(billingCycle)!),
-  );
-}
-
-export function nextPricingCycle(pricingOptions: PricePerUnit[]): BillingCycle {
-  return (
-    preferredBillingCycleOrder.find(
-      (billingCycle) =>
-        !pricingOptions.some((option) => option.billingCycle === billingCycle),
-    ) ?? "monthly"
-  );
+  return pricingOptions.length === 0
+    ? []
+    : [normalizePricePerUnit(pricingOptions[0]!)];
 }
 
 export function sameLabel(left?: string, right?: string): boolean {
@@ -763,16 +585,18 @@ export function buildSkuCode(input: {
   productName?: string;
   planName?: string;
   region?: string;
+  billingCycle?: BillingCycle;
 }): string {
   const productName = slugifySkuPart(input.productName);
   const planName = slugifySkuPart(input.planName);
   const region = slugifySkuPart(input.region);
+  const billingCycle = input.billingCycle?.trim();
 
-  if (!productName || !planName || !region) {
+  if (!productName || !planName || !region || !billingCycle) {
     return "";
   }
 
-  return [productName, planName, region].filter(Boolean).join("-");
+  return [productName, planName, region, billingCycle].join("-");
 }
 
 export function ensureUniqueSkuCode(

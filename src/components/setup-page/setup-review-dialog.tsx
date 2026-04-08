@@ -4,6 +4,7 @@ import {
   formatBillingCycleLabel,
   formatBillingCycles,
   formatPriceLine,
+  formatSkuPurchaseTypeLabel,
 } from "@/lib/catalog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,9 @@ export function SetupReviewDialog({
                       {entry.pricingOptions.length > 0
                         ? formatBillingCycles(entry.pricingOptions)
                         : "No pricing configured"}
+                    </Badge>
+                    <Badge variant="outline">
+                      {formatSkuPurchaseTypeLabel(entry.draft.purchaseType)}
                     </Badge>
                     <Badge variant="outline">
                       {entry.stockTrackingEnabled
