@@ -95,16 +95,24 @@ function getActivationStatusLabel(status?: ActivationStatus) {
   return "Failed";
 }
 
-function getNotificationStatusLabel(status?: NotificationStatus) {
+function getNotificationStatusSummary(
+  status?: NotificationStatus,
+  queuedAt?: string,
+  updatedAt?: string,
+) {
   if (!status || status === "not_queued") {
-    return "Mail not queued";
+    return "Not queued";
   }
 
   if (status === "queued") {
-    return "Mail queued";
+    return queuedAt
+      ? `Queued at ${formatOptionalTimestamp(queuedAt)}`
+      : "Queued";
   }
 
-  return "Mail failed";
+  return updatedAt
+    ? `Failed at ${formatOptionalTimestamp(updatedAt)}`
+    : "Failed";
 }
 
 function getPurchaseTypeSummaryLabel(value?: PurchaseType) {
@@ -113,7 +121,7 @@ function getPurchaseTypeSummaryLabel(value?: PurchaseType) {
   }
 
   if (value === "one_time") {
-    return "One-time";
+    return "One Time";
   }
 
   if (value === "unknown") {
@@ -125,7 +133,7 @@ function getPurchaseTypeSummaryLabel(value?: PurchaseType) {
 
 function getPurchasedBillingCycleLabel(value?: PurchasedBillingCycle) {
   if (value === "one_time") {
-    return "One-time";
+    return "One Time";
   }
 
   if (value === "custom") {
@@ -420,6 +428,7 @@ export function SalesPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>
+                  <TableHead>SKU</TableHead>
                   <TableHead>Partner</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Payment</TableHead>
@@ -444,8 +453,10 @@ export function SalesPage({
                   const activationStatusLabel = getActivationStatusLabel(
                     entry.activation?.activationStatus,
                   );
-                  const notificationStatusLabel = getNotificationStatusLabel(
+                  const notificationStatusSummary = getNotificationStatusSummary(
                     entry.activation?.notificationStatus,
+                    entry.activation?.notificationQueuedAt,
+                    entry.activation?.updatedAt,
                   );
                   const isCompletedActivation =
                     entry.activation?.activationStatus === "completed";
@@ -459,17 +470,17 @@ export function SalesPage({
                       <TableRow
                         data-state={isExpanded ? "expanded" : undefined}
                       >
+                        <TableCell className="align-top font-medium min-w-32">
+                          {entry.product.name}
+                        </TableCell>
                         <TableCell className="align-top">
                           <div className="flex min-w-52 flex-col gap-1.5">
                             <span className="font-medium">
-                              {entry.product.name}
-                            </span>
-                            <span className="text-sm text-muted-foreground">
                               {entry.plan.name}
                             </span>
                             <div className="flex flex-wrap gap-2">
                               <Badge variant="outline">{entry.sku.code}</Badge>
-                              <Badge variant="secondary">
+                              <Badge variant="outline">
                                 {entry.sku.region}
                               </Badge>
                               <Badge
@@ -485,21 +496,16 @@ export function SalesPage({
                               >
                                 {activationStatusLabel}
                               </Badge>
-                              <Badge
-                                variant={
-                                  entry.activation?.notificationStatus ===
-                                  "failed"
-                                    ? "destructive"
-                                    : "outline"
-                                }
-                              >
-                                {notificationStatusLabel}
-                              </Badge>
+                              {purchaseTypeLabel ? (
+                                <Badge variant="secondary">
+                                  {purchaseTypeLabel}
+                                </Badge>
+                              ) : null}
                             </div>
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
-                          <div className="flex min-w-44 flex-col gap-1">
+                          <div className="flex min-w-40 flex-col gap-1">
                             <span className="font-medium">
                               {entry.sale.partner.name}
                             </span>
@@ -509,7 +515,7 @@ export function SalesPage({
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
-                          <div className="flex min-w-56 flex-col gap-1">
+                          <div className="flex min-w-48 flex-col gap-1">
                             <span className="font-medium">
                               {entry.sale.customer.name}
                             </span>
@@ -523,7 +529,8 @@ export function SalesPage({
                               <div className="pt-1 text-xs text-muted-foreground">
                                 {additionalInfo.map(([key, value]) => (
                                   <div key={key}>
-                                    {key}: {value}
+                                    <span className="capitalize">{key}</span>:{" "}
+                                    {value}
                                   </div>
                                 ))}
                               </div>
@@ -531,7 +538,7 @@ export function SalesPage({
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
-                          <div className="flex min-w-52 flex-col gap-1.5">
+                          <div className="flex min-w-48 flex-col gap-1.5">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-medium">
                                 {normalizeMoneyAmount(
@@ -551,20 +558,21 @@ export function SalesPage({
                               <div className="text-xs text-muted-foreground">
                                 {paymentMetadata.map(([key, value]) => (
                                   <div key={key}>
-                                    {key}: {value}
+                                    <span className="capitalize">{key}</span>:{" "}
+                                    {value}
                                   </div>
                                 ))}
                               </div>
                             ) : null}
                           </div>
                         </TableCell>
-                        <TableCell className="align-top font-medium">
+                        <TableCell className="align-top flex justify-center">
                           {entry.sale.quantity}
                         </TableCell>
                         <TableCell className="align-top text-sm text-muted-foreground">
                           {new Date(entry.sale.createdAt).toLocaleString()}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="align-top">
                           <Button
                             type="button"
                             variant="outline"
@@ -599,297 +607,196 @@ export function SalesPage({
                       {isExpanded ? (
                         <TableRow id={`sale-details-${entry.sale._id}`}>
                           <TableCell
-                            colSpan={7}
+                            colSpan={8}
                             className="bg-muted py-0 border-l border-r border-b"
                           >
-                            <div>
-                              {isSkuLoading && !skuDetails ? (
-                                <div className="flex flex-col gap-3">
-                                  <span className="text-sm font-medium">
-                                    Loading SKU details...
-                                  </span>
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    <Skeleton className="h-20 w-full" />
-                                    <Skeleton className="h-20 w-full" />
-                                  </div>
-                                  <Skeleton className="h-16 w-full" />
+                            {isSkuLoading && !skuDetails ? (
+                              <div className="flex flex-col gap-3">
+                                <span className="text-sm font-medium">
+                                  Loading SKU details...
+                                </span>
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  <Skeleton className="h-20 w-full" />
+                                  <Skeleton className="h-20 w-full" />
                                 </div>
-                              ) : skuError && !skuDetails ? (
-                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                  <div>
-                                    <p className="font-medium">
-                                      SKU details could not be loaded
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                      {skuError}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      void loadSkuDetails(entry.sale.skuId)
-                                    }
-                                  >
-                                    Retry
-                                  </Button>
+                                <Skeleton className="h-16 w-full" />
+                              </div>
+                            ) : skuError && !skuDetails ? (
+                              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                  <p className="font-medium">
+                                    SKU details could not be loaded
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {skuError}
+                                  </p>
                                 </div>
-                              ) : skuDetails ? (
-                                <>
-                                  <div className="mx-2 my-3 rounded-xl border bg-background/80 p-4">
-                                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    void loadSkuDetails(entry.sale.skuId)
+                                  }
+                                >
+                                  Retry
+                                </Button>
+                              </div>
+                            ) : skuDetails ? (
+                              <div className="mx-2 my-3 rounded-xl border bg-background/80 p-4">
+                                <div className="flex justify-between gap-4">
+                                  <p>
+                                    <span className="font-medium capitalize">
+                                      Activation Timeline:
+                                    </span>{" "}
+                                    <span className="text-sm text-muted-foreground sm:text-right">
+                                      {formatActivationTimelineValue(
+                                        skuDetails.activationTimeline,
+                                      ) ?? "Not set"}
+                                    </span>
+                                  </p>
+                                  <p>
+                                    <span className="font-medium capitalize">
+                                      {formatBillingCycleLabel(
+                                        skuDetails.pricingOption.billingCycle,
+                                      )}
+                                      :{" "}
+                                    </span>
+                                    <span className="text-sm text-muted-foreground sm:text-right">
+                                      {formatPriceLine(
+                                        skuDetails.pricingOption,
+                                      )}
+                                    </span>
+                                  </p>
+                                </div>
+
+                                {entry.activation ? (
+                                  <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                    <div className="rounded-lg border bg-muted/20 p-3">
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                        SKU details
+                                        Fulfillment
                                       </p>
-                                      <Badge variant="outline">
-                                        {skuDetails.code}
-                                      </Badge>
-                                      <Badge variant="outline">
-                                        {skuDetails.region}
-                                      </Badge>
-                                      <Badge
-                                        variant={
-                                          skuDetails.isBillingDisabled
-                                            ? "secondary"
-                                            : "outline"
-                                        }
-                                      >
-                                        {skuDetails.isBillingDisabled
-                                          ? "Billing disabled"
-                                          : "Billing enabled"}
-                                      </Badge>
-                                      {purchaseTypeLabel ? (
-                                        <Badge variant="secondary">
-                                          {purchaseTypeLabel}
-                                        </Badge>
-                                      ) : null}
-                                    </div>
-                                    <div className="flex justify-between gap-4">
-                                      <p>
-                                        <span className="font-medium capitalize">
-                                          Minimum units:
-                                        </span>{" "}
-                                        <span className="text-sm text-muted-foreground sm:text-right">
-                                          {formatMinimumUnits(
-                                            skuDetails.purchaseConstraints
-                                              ?.minUnits,
-                                          )}
-                                        </span>
-                                      </p>
-                                      <p>
-                                        <span className="font-medium capitalize">
-                                          Maximum units:
-                                        </span>{" "}
-                                        <span className="text-sm text-muted-foreground sm:text-right">
-                                          {formatMaximumUnits(
-                                            skuDetails.purchaseConstraints
-                                              ?.maxUnits,
-                                          )}
-                                        </span>
-                                      </p>
-                                      <p>
-                                        <span className="font-medium capitalize">
-                                          Activation Timeline:
-                                        </span>{" "}
-                                        <span className="text-sm text-muted-foreground sm:text-right">
-                                          {formatActivationTimelineValue(
-                                            skuDetails.activationTimeline,
-                                          ) ?? "Not set"}
-                                        </span>
-                                      </p>
-                                      <p>
-                                        <span className="font-medium capitalize">
-                                          {formatBillingCycleLabel(
-                                            skuDetails.pricingOption
-                                              .billingCycle,
-                                          )}{" "}
-                                        </span>
-                                        <span className="text-sm text-muted-foreground sm:text-right">
-                                          {formatPriceLine(
-                                            skuDetails.pricingOption,
-                                          )}
-                                        </span>
-                                      </p>
-                                    </div>
-                                  </div>
-                                  {entry.activation ? (
-                                    <div className="mx-2 my-3 rounded-xl border bg-background/80 p-4">
-                                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                        Activation details
-                                      </p>
-                                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                        <div className="rounded-lg border bg-muted/20 p-3">
-                                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                            Fulfillment
-                                          </p>
-                                          <div className="mt-2 space-y-1 text-sm">
-                                            <p>
-                                              Method:{" "}
-                                              {getFulfillmentModeLabel(
-                                                entry.activation
-                                                  .fulfillmentMode,
-                                              )}
-                                            </p>
-                                            <p>
-                                              Purchase type:{" "}
-                                              {getPurchaseTypeSummaryLabel(
-                                                entry.activation.purchaseType,
-                                              )}
-                                            </p>
-                                            <p>
-                                              Billing cycle:{" "}
-                                              {getPurchasedBillingCycleLabel(
-                                                entry.activation
-                                                  .billingCyclePurchased,
-                                              )}
-                                            </p>
-                                          </div>
-                                        </div>
-
-                                        <div className="rounded-lg border bg-muted/20 p-3">
-                                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                            Access window
-                                          </p>
-                                          <div className="mt-2 space-y-1 text-sm">
-                                            <p>
-                                              Start:{" "}
-                                              {formatOptionalDate(
-                                                entry.activation
-                                                  .accessStartDate,
-                                              )}
-                                            </p>
-                                            <p>
-                                              End:{" "}
-                                              {formatOptionalDate(
-                                                entry.activation.accessEndDate,
-                                              )}
-                                            </p>
-                                            <p>
-                                              Renewal:{" "}
-                                              {formatOptionalDate(
-                                                entry.activation
-                                                  .nextRenewalDate,
-                                              )}
-                                            </p>
-                                          </div>
-                                        </div>
-
-                                        <div className="rounded-lg border bg-muted/20 p-3">
-                                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                            Completion
-                                          </p>
-                                          <div className="mt-2 space-y-1 text-sm">
-                                            <p>
-                                              Status:{" "}
-                                              {getActivationStatusLabel(
-                                                entry.activation
-                                                  .activationStatus,
-                                              )}
-                                            </p>
-                                            <p>
-                                              Activated at:{" "}
-                                              {formatOptionalTimestamp(
-                                                entry.activation.activatedAt,
-                                              )}
-                                            </p>
-                                            <p>
-                                              Last updated:{" "}
-                                              {formatOptionalTimestamp(
-                                                entry.activation.updatedAt,
-                                              )}
-                                            </p>
-                                          </div>
-                                        </div>
-
-                                        {entry.activation.fulfillmentMode ===
-                                        "license_key" ? (
-                                          <div className="rounded-lg border bg-muted/20 p-3">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                              License details
-                                            </p>
-                                            <div className="mt-2 space-y-1 text-sm">
-                                              <p>
-                                                Key:{" "}
-                                                {entry.activation
-                                                  .licenseKeyMasked ??
-                                                  "Stored securely"}
-                                              </p>
-                                              <p>
-                                                Document:{" "}
-                                                {entry.activation
-                                                  .licenseDocument?.fileName ??
-                                                  "Not attached"}
-                                              </p>
-                                              <p>
-                                                Uploaded at:{" "}
-                                                {formatOptionalTimestamp(
-                                                  entry.activation
-                                                    .licenseDocument
-                                                    ?.uploadedAt,
-                                                )}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <div className="rounded-lg border bg-muted/20 p-3">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                              Delivery
-                                            </p>
-                                            <div className="mt-2 space-y-1 text-sm">
-                                              <p>
-                                                Access is delivered without a
-                                                license key.
-                                              </p>
-                                              <p>
-                                                Mail status:{" "}
-                                                {notificationStatusLabel}
-                                              </p>
-                                              <p>
-                                                Queued at:{" "}
-                                                {formatOptionalTimestamp(
-                                                  entry.activation
-                                                    .notificationQueuedAt,
-                                                )}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        )}
-
-                                        <div className="rounded-lg border bg-muted/20 p-3">
-                                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                            Mail tracking
-                                          </p>
-                                          <div className="mt-2 space-y-1 text-sm">
-                                            <p>
-                                              Status: {notificationStatusLabel}
-                                            </p>
-                                            <p>
-                                              Queued at:{" "}
-                                              {formatOptionalTimestamp(
-                                                entry.activation
-                                                  .notificationQueuedAt,
-                                              )}
-                                            </p>
-                                          </div>
-                                        </div>
-
-                                        {entry.activation.notes ? (
-                                          <div className="rounded-lg border bg-muted/20 p-3 md:col-span-2 xl:col-span-3">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                              Ops notes
-                                            </p>
-                                            <p className="mt-2 text-sm">
-                                              {entry.activation.notes}
-                                            </p>
-                                          </div>
-                                        ) : null}
+                                      <div className="mt-2 space-y-1 text-sm">
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            Method:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {getFulfillmentModeLabel(
+                                              entry.activation.fulfillmentMode,
+                                            )}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            Purchase type:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {getPurchaseTypeSummaryLabel(
+                                              entry.activation.purchaseType,
+                                            )}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            Billing cycle:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {getPurchasedBillingCycleLabel(
+                                              entry.activation
+                                                .billingCyclePurchased,
+                                            )}
+                                          </span>
+                                        </p>
                                       </div>
                                     </div>
-                                  ) : null}
-                                </>
-                              ) : null}
-                            </div>
+
+                                    <div className="rounded-lg border bg-muted/20 p-3">
+                                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                        Access window
+                                      </p>
+                                      <div className="mt-2 space-y-1 text-sm">
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            Start:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {formatOptionalDate(
+                                              entry.activation.accessStartDate,
+                                            )}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            End:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {formatOptionalDate(
+                                              entry.activation.accessEndDate,
+                                            )}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            Renewal:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {formatOptionalDate(
+                                              entry.activation.nextRenewalDate,
+                                            )}
+                                          </span>
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="rounded-lg border bg-muted/20 p-3">
+                                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                        Delivery
+                                      </p>
+                                      <div className="mt-2 space-y-1 text-sm">
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            License key:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {entry.activation
+                                              .licenseKeyMasked ?? "Not included"}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            License document:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {entry.activation.licenseDocument
+                                              ?.fileName ?? "Not included"}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="font-medium capitalize">
+                                            Mail status:{" "}
+                                          </span>
+                                          <span className="text-sm text-muted-foreground sm:text-right">
+                                            {notificationStatusSummary}
+                                          </span>
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {entry.activation.notes ? (
+                                      <div className="rounded-lg border bg-muted/20 p-3 md:col-span-1 lg:col-span-3">
+                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                          Ops notes
+                                        </p>
+                                        <p className="mt-2 text-sm">
+                                          {entry.activation.notes}
+                                        </p>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </TableCell>
                         </TableRow>
                       ) : null}
@@ -920,4 +827,3 @@ export function SalesPage({
     </>
   );
 }
-

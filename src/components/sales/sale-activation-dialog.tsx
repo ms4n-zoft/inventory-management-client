@@ -128,6 +128,9 @@ export function SaleActivationDialog({
   onSave: (payload: SaleActivationSavePayload) => Promise<boolean>;
 }) {
   const [accessStartDate, setAccessStartDate] = useState("");
+  const [manualAccessEndDate, setManualAccessEndDate] = useState<string | null>(
+    null,
+  );
   const [licenseKey, setLicenseKey] = useState("");
   const [notes, setNotes] = useState("");
   const [licenseDocumentFile, setLicenseDocumentFile] = useState<File | null>(
@@ -143,8 +146,24 @@ export function SaleActivationDialog({
     }
 
     const activation = entry.activation;
+    const purchaseType = inferPurchaseType(entry);
+    const billingCyclePurchased = inferBillingCyclePurchased(entry);
+    const initialAccessStartDate = toDateInputValue(activation?.accessStartDate);
+    const initialSuggestedAccessEndDate = suggestedRenewalDate(
+      purchaseType,
+      billingCyclePurchased,
+      initialAccessStartDate,
+    );
+    const savedAccessEndDate = toDateInputValue(
+      activation?.accessEndDate ?? activation?.nextRenewalDate,
+    );
 
-    setAccessStartDate(toDateInputValue(activation?.accessStartDate));
+    setAccessStartDate(initialAccessStartDate);
+    setManualAccessEndDate(
+      savedAccessEndDate && savedAccessEndDate !== initialSuggestedAccessEndDate
+        ? savedAccessEndDate
+        : null,
+    );
     setLicenseKey("");
     setNotes(activation?.notes ?? "");
     setLicenseDocumentFile(null);
@@ -158,12 +177,15 @@ export function SaleActivationDialog({
 
   const purchaseType = inferPurchaseType(entry);
   const billingCyclePurchased = inferBillingCyclePurchased(entry);
+  const isOneTimeSku =
+    purchaseType === "one_time" || billingCyclePurchased === "one_time";
   const fulfillmentMode: SaleFulfillmentMode = "email_based";
-  const renewalDate = suggestedRenewalDate(
+  const suggestedAccessEndDate = suggestedRenewalDate(
     purchaseType,
     billingCyclePurchased,
     accessStartDate,
   );
+  const accessEndDate = manualAccessEndDate ?? suggestedAccessEndDate;
   const canPreview =
     purchaseType !== "unknown" &&
     billingCyclePurchased !== "unknown" &&
@@ -174,11 +196,14 @@ export function SaleActivationDialog({
     : entry.activation?.licenseKeyMasked ?? "";
   const previewLicenseDocument =
     licenseDocumentFile?.name ?? licenseDocument?.fileName ?? "";
-  const renewalDateDescription = !accessStartDate
-    ? "Set the access start date to calculate the renewal and access end date."
-    : renewalDate
-      ? `This will be saved as ${renewalDate} for both the next renewal date and the access end date.`
-      : "This SKU does not require a renewal date, so the access end date will stay empty.";
+  const accessStartDateDescription = isOneTimeSku
+    ? "This is the only editable date in this step."
+    : "The access end date will be auto-suggested and you can adjust it if needed.";
+  const accessEndDateDescription = !accessStartDate
+    ? "Set the access start date to auto-suggest the access end date, or enter it manually."
+    : accessEndDate
+      ? `This will be saved as ${accessEndDate} for both the next renewal date and the access end date.`
+      : "Enter the access end date manually for this SKU.";
 
   const handleConfirm = async () => {
     const didSave = await onSave({
@@ -186,8 +211,8 @@ export function SaleActivationDialog({
       billingCyclePurchased,
       fulfillmentMode,
       accessStartDate: accessStartDate || undefined,
-      accessEndDate: renewalDate || undefined,
-      nextRenewalDate: renewalDate || undefined,
+      accessEndDate: !isOneTimeSku ? accessEndDate || undefined : undefined,
+      nextRenewalDate: !isOneTimeSku ? accessEndDate || undefined : undefined,
       licenseKey: licenseKeyValue || undefined,
       licenseDocumentFile: licenseDocumentFile ?? undefined,
       licenseDocument: licenseDocument ?? undefined,
@@ -230,10 +255,12 @@ export function SaleActivationDialog({
 
               <div className="grid gap-3 rounded-lg border bg-muted/10 p-4 text-sm">
                 <p>Access start date: {accessStartDate || "Not set"}</p>
-                <p className="flex items-center gap-2">
-                  <CalendarCheckIcon className="size-4" />
-                  Renewal / access end date: {renewalDate || "Not required for this SKU"}
-                </p>
+                {!isOneTimeSku ? (
+                  <p className="flex items-center gap-2">
+                    <CalendarCheckIcon className="size-4" />
+                    Renewal / access end date: {accessEndDate || "Not set"}
+                  </p>
+                ) : null}
                 <p>License key: {previewLicenseKey || "Not included"}</p>
                 <p>License document: {previewLicenseDocument || "Not included"}</p>
                 <p>Notes: {notes.trim() || "No ops notes"}</p>
@@ -258,17 +285,27 @@ export function SaleActivationDialog({
                   disabled={loading}
                 />
                 <FieldDescription>
-                  This is the only editable date in this step.
+                  {accessStartDateDescription}
                 </FieldDescription>
               </Field>
 
-              <Field>
-                <FieldLabel>Renewal / access end date</FieldLabel>
-                <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">
-                  {renewalDate || "Not required for this SKU"}
-                </div>
-                <FieldDescription>{renewalDateDescription}</FieldDescription>
-              </Field>
+              {!isOneTimeSku ? (
+                <Field>
+                  <FieldLabel htmlFor="activation-access-end-date">
+                    Renewal / access end date
+                  </FieldLabel>
+                  <Input
+                    id="activation-access-end-date"
+                    type="date"
+                    value={accessEndDate}
+                    onChange={(event) =>
+                      setManualAccessEndDate(event.target.value || null)
+                    }
+                    disabled={loading}
+                  />
+                  <FieldDescription>{accessEndDateDescription}</FieldDescription>
+                </Field>
+              ) : null}
 
               <Field>
                 <FieldLabel htmlFor="activation-license-key">
@@ -363,3 +400,4 @@ export function SaleActivationDialog({
     </Dialog>
   );
 }
+
