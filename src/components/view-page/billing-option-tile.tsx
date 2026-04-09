@@ -3,8 +3,8 @@ import { BoxesIcon, PencilRulerIcon, Trash2Icon } from "lucide-react";
 
 import {
   formatActivationTimelineValue,
+  formatBillingCycle,
   formatBillingCycleLabel,
-  formatBillingCycles,
   formatPriceLine,
   formatPurchaseConstraints,
   formatSkuPurchaseTypeLabel,
@@ -49,7 +49,6 @@ export function BillingOptionTile({
   const [billingDisabled, setBillingDisabled] = useState(
     Boolean(entry.sku.isBillingDisabled),
   );
-  const pricingOptions = [entry.sku.pricingOption];
   const minimumUnits = entry.sku.purchaseConstraints?.minUnits;
   const maximumUnits = entry.sku.purchaseConstraints?.maxUnits;
   const stockTrackingEnabled = isStockTrackingEnabled(
@@ -109,7 +108,7 @@ export function BillingOptionTile({
             {formatSkuLabel(entry.sku)}
           </span>
           <span className="rounded-md border bg-muted/40 px-2 py-1">
-            {formatBillingCycles(pricingOptions)}
+            {formatBillingCycle(entry.sku.pricingOption)}
           </span>
           <span className="rounded-md border bg-muted/40 px-2 py-1">
             {formatSkuPurchaseTypeLabel(entry.sku.purchaseType)}
@@ -117,15 +116,13 @@ export function BillingOptionTile({
         </div>
 
         <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-          {pricingOptions.map((option) => (
-            <p key={`${entry.sku._id}-${option.billingCycle}`}>
-              {formatBillingCycleLabel(option.billingCycle)}:{" "}
-              {formatPriceLine({
-                ...option,
-                fallbackText: "Pricing unavailable",
-              })}
-            </p>
-          ))}
+          <p>
+            {formatBillingCycleLabel(entry.sku.pricingOption.billingCycle)}:{" "}
+            {formatPriceLine({
+              ...entry.sku.pricingOption,
+              fallbackText: "Pricing unavailable",
+            })}
+          </p>
           <p>{formatPurchaseConstraints(entry.sku)}</p>
           {activationTimeline ? (
             <p>Activation timeline: {activationTimeline}</p>

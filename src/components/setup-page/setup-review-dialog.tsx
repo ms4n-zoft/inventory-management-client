@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
 import {
+  formatBillingCycle,
   formatBillingCycleLabel,
-  formatBillingCycles,
   formatPriceLine,
   formatSkuPurchaseTypeLabel,
 } from "@/lib/catalog";
@@ -162,9 +162,7 @@ export function SetupReviewDialog({
                       {entry.existingSku ? "Existing offer" : "New offer"}
                     </Badge>
                     <Badge variant="outline">
-                      {entry.pricingOptions.length > 0
-                        ? formatBillingCycles(entry.pricingOptions)
-                        : "No pricing configured"}
+                      {formatBillingCycle(entry.pricingOption)}
                     </Badge>
                     <Badge variant="outline">
                       {formatSkuPurchaseTypeLabel(entry.draft.purchaseType)}
@@ -227,19 +225,14 @@ export function SetupReviewDialog({
                       Pricing
                     </p>
                     <div className="mt-3 space-y-3">
-                      {entry.pricingOptions.map((option) => (
-                        <div
-                          key={`${entry.region}-${option.billingCycle}`}
-                          className="flex flex-col gap-1 rounded-lg border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <p className="font-medium text-foreground">
-                            {formatBillingCycleLabel(option.billingCycle)}
-                          </p>
-                          <p className="text-sm text-muted-foreground sm:text-right">
-                            {formatPriceLine(option)}
-                          </p>
-                        </div>
-                      ))}
+                      <div className="flex flex-col gap-1 rounded-lg border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="font-medium text-foreground">
+                          {formatBillingCycleLabel(entry.pricingOption.billingCycle)}
+                        </p>
+                        <p className="text-sm text-muted-foreground sm:text-right">
+                          {formatPriceLine(entry.pricingOption)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

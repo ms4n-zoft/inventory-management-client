@@ -122,13 +122,9 @@ function normalizePricingOption(pricingOption: PricePerUnit): PricePerUnit {
   };
 }
 
-function resolvePricingOption(input: {
-  pricingOption?: PricePerUnit;
-  pricingOptions?: PricePerUnit[];
-}): PricePerUnit {
+function resolvePricingOption(pricingOption?: PricePerUnit): PricePerUnit {
   return (
-    input.pricingOption ??
-    input.pricingOptions?.[0] ?? {
+    pricingOption ?? {
       billingCycle: "monthly",
       amount: "",
       currency: "USD",
@@ -162,10 +158,10 @@ function normalizeSaleListEntry(entry: SaleListEntry): SaleListEntry {
 }
 
 function normalizeSku(sku: ApiSku | Sku): Sku {
-  const { pricingOptions: _legacyPricingOptions, ...rest } = sku as ApiSku & {
-    pricingOptions?: PricePerUnit[];
-  };
-  const pricingOption = normalizePricingOption(resolvePricingOption(sku));
+  const { pricingOption: rawPricingOption, ...rest } = sku;
+  const pricingOption = normalizePricingOption(
+    resolvePricingOption(rawPricingOption),
+  );
 
   return {
     ...rest,
@@ -259,7 +255,6 @@ type ApiSku = Omit<Sku, "purchaseConstraints" | "purchaseType" | "pricingOption"
   purchaseType?: SkuPurchaseType;
   isBillingDisabled?: boolean;
   pricingOption?: PricePerUnit;
-  pricingOptions?: PricePerUnit[];
 };
 
 type ApiCatalogEntryResponse = Omit<CatalogEntryResponse, "sku"> & {

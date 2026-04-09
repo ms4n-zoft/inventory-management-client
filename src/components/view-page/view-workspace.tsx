@@ -10,18 +10,18 @@ import type {
 } from "@/components/view-page/types";
 import {
   applyPricingDetailsChange,
-  buildPricingOptionsFromDetails,
+  buildPricingOptionFromDetails,
   buildPurchaseConstraints,
   buildSkuCode,
   ensureUniqueSkuCode,
-  hasValidPricingOptions,
+  hasValidPricingOption,
   hasValidPurchaseConstraints,
   isStockTrackingEnabled,
   normalizeBillingCycleForPurchaseType,
-  normalizePricingOptionsForComparison,
-  normalizePricingOptions,
+  normalizePricingOptionForComparison,
+  normalizePricePerUnit,
   normalizeRegion,
-  pricingDetailsFromPricingOptions,
+  pricingDetailsFromPricingOption,
   purchaseConstraintsToFormValues,
   syncPricingDetailsForBillingCycle,
 } from "@/lib/billing-option";
@@ -74,7 +74,7 @@ export function ViewWorkspace({
     useState<SkuPurchaseType>("subscription");
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [billingPricingDetails, setBillingPricingDetails] =
-    useState<PricingDetails>(pricingDetailsFromPricingOptions([]));
+    useState<PricingDetails>(pricingDetailsFromPricingOption());
   const [billingMinUnits, setBillingMinUnits] = useState("");
   const [billingMaxUnits, setBillingMaxUnits] = useState("");
   const [activationTimeline, setActivationTimeline] = useState("");
@@ -138,7 +138,7 @@ export function ViewWorkspace({
       ),
     );
     setBillingPricingDetails(
-      pricingDetailsFromPricingOptions([activeBillingEntry.sku.pricingOption]),
+      pricingDetailsFromPricingOption(activeBillingEntry.sku.pricingOption),
     );
     const purchaseConstraintValues = purchaseConstraintsToFormValues(
       activeBillingEntry.sku.purchaseConstraints,
@@ -155,9 +155,9 @@ export function ViewWorkspace({
     setInventoryActor("operations");
   }, [activeInventoryPool, inventoryDialogTarget]);
 
-  const billingPricingOptions = useMemo(
+  const billingPricingOption = useMemo(
     () =>
-      buildPricingOptionsFromDetails({
+      buildPricingOptionFromDetails({
         billingCycle,
         pricingDetails: billingPricingDetails,
       }),
@@ -183,13 +183,13 @@ export function ViewWorkspace({
     );
   }, [activeBillingEntry, billingCycle, normalizedBillingRegion, snapshot.skus]);
 
-  const normalizedBillingPricingOptions = useMemo(
-    () => normalizePricingOptions(billingPricingOptions),
-    [billingPricingOptions],
+  const normalizedBillingPricingOption = useMemo(
+    () => normalizePricePerUnit(billingPricingOption),
+    [billingPricingOption],
   );
-  const comparableBillingPricingOptions = useMemo(
-    () => normalizePricingOptionsForComparison(billingPricingOptions),
-    [billingPricingOptions],
+  const comparableBillingPricingOption = useMemo(
+    () => normalizePricingOptionForComparison(billingPricingOption),
+    [billingPricingOption],
   );
   const normalizedBillingPurchaseConstraints = useMemo(
     () =>
@@ -207,12 +207,12 @@ export function ViewWorkspace({
   const billingHasPricing =
     Boolean(normalizedBillingRegion) &&
     billingHasValidConstraints &&
-    hasValidPricingOptions(normalizedBillingPricingOptions);
-  const currentBillingPricingOptions = useMemo(
+    hasValidPricingOption(normalizedBillingPricingOption);
+  const currentBillingPricingOption = useMemo(
     () =>
-      normalizePricingOptionsForComparison(
-        activeBillingEntry ? [activeBillingEntry.sku.pricingOption] : [],
-      ),
+      activeBillingEntry
+        ? normalizePricingOptionForComparison(activeBillingEntry.sku.pricingOption)
+        : null,
     [activeBillingEntry],
   );
   const billingChanged =
@@ -220,8 +220,8 @@ export function ViewWorkspace({
     (activeBillingEntry.sku.region !== normalizedBillingRegion ||
       activeBillingEntry.sku.purchaseType !== billingPurchaseType ||
       activeBillingEntry.sku.code !== generatedBillingCode ||
-      JSON.stringify(currentBillingPricingOptions) !==
-        JSON.stringify(comparableBillingPricingOptions) ||
+      JSON.stringify(currentBillingPricingOption) !==
+        JSON.stringify(comparableBillingPricingOption) ||
       JSON.stringify(activeBillingEntry.sku.purchaseConstraints ?? null) !==
         JSON.stringify(normalizedBillingPurchaseConstraints ?? null) ||
       (activeBillingEntry.sku.activationTimeline ?? "") !==
@@ -361,7 +361,7 @@ export function ViewWorkspace({
                 region: normalizedBillingRegion,
                 seatType: activeBillingEntry.sku.seatType,
                 purchaseType: billingPurchaseType,
-                pricingOption: normalizedBillingPricingOptions[0]!,
+                pricingOption: normalizedBillingPricingOption,
                 purchaseConstraints: normalizedBillingPurchaseConstraints,
                 activationTimeline: activationTimeline.trim() || undefined,
                 isBillingDisabled: activeBillingEntry.sku.isBillingDisabled,

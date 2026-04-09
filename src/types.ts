@@ -52,8 +52,6 @@ export type PricingDetails = {
   discountedAmount: string;
 };
 
-export type PricingDetailsByCycle = Record<BillingCycle, PricingDetails>;
-
 export type PurchaseConstraints = {
   minUnits?: number;
   maxUnits?: number;

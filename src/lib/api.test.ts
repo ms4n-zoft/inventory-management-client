@@ -152,17 +152,15 @@ describe("api sku response normalization", () => {
             region: "INDIA",
             seatType: "seat",
             isBillingDisabled: true,
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "100.555",
-                currency: "INR",
-                entity: "user",
-                ratePeriod: "month",
-                discountPercentage: "15.129",
-                discountedAmount: "85.355",
-              },
-            ],
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "100.555",
+              currency: "INR",
+              entity: "user",
+              ratePeriod: "month",
+              discountPercentage: "15.129",
+              discountedAmount: "85.355",
+            },
             purchaseConstraints: {
               minUnits: 1,
               maxUnits: "unlimited",
@@ -256,16 +254,14 @@ describe("api sku response normalization", () => {
             code: "pipedrive-starter-pack-india",
             region: "INDIA",
             seatType: "seat",
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "100.555",
-                currency: "INR",
-                entity: "user",
-                ratePeriod: "month",
-                discountedAmount: "90.443",
-              },
-            ],
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "100.555",
+              currency: "INR",
+              entity: "user",
+              ratePeriod: "month",
+              discountedAmount: "90.443",
+            },
             purchaseConstraints: {
               minUnits: 1,
               maxUnits: "unlimited",
@@ -309,15 +305,13 @@ describe("api sku response normalization", () => {
         code: "pipedrive-starter-pack-india",
         region: "INDIA",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "3060.125",
-            currency: "inr",
-            entity: "user",
-            ratePeriod: "month",
-          },
-        ],
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "3060.125",
+          currency: "inr",
+          entity: "user",
+          ratePeriod: "month",
+        },
         purchaseConstraints: {
           minUnits: 1,
           maxUnits: "unlimited",
@@ -372,15 +366,13 @@ describe("api sku response normalization", () => {
         code: "pipedrive-starter-pack-india",
         region: "INDIA",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "3060",
-            currency: "INR",
-            entity: "user",
-            ratePeriod: "month",
-          },
-        ],
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "3060",
+          currency: "INR",
+          entity: "user",
+          ratePeriod: "month",
+        },
         purchaseConstraints: {
           minUnits: 1,
           maxUnits: 25,
@@ -449,15 +441,13 @@ describe("api sku response normalization", () => {
             code: "pipedrive-starter-pack-india",
             region: "INDIA",
             seatType: "seat",
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "3060",
-                currency: "INR",
-                entity: "user",
-                ratePeriod: "month",
-              },
-            ],
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "3060",
+              currency: "INR",
+              entity: "user",
+              ratePeriod: "month",
+            },
             purchaseConstraints: {
               minUnits: 1,
               maxUnits: 25,

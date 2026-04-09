@@ -11,19 +11,10 @@ import type {
   BillingCycle,
   PricePerUnit,
   PricingDetails,
-  PricingDetailsByCycle,
   PurchaseConstraints,
   Region,
   SkuPurchaseType,
 } from "@/types";
-
-const preferredBillingCycleOrder: BillingCycle[] = [
-  "monthly",
-  "quarterly",
-  "half_yearly",
-  "yearly",
-  "one_time",
-];
 
 const defaultRatePeriodsByCycle: Record<BillingCycle, string> = {
   monthly: "monthly",
@@ -95,16 +86,6 @@ export const commonCurrencyOptions = ["USD", "INR"].map((currency) => ({
   value: currency,
   label: currency,
 }));
-
-export function orderBillingCycles(
-  billingCycles: BillingCycle[],
-): BillingCycle[] {
-  const uniqueBillingCycles = new Set(billingCycles);
-
-  return preferredBillingCycleOrder.filter((billingCycle) =>
-    uniqueBillingCycles.has(billingCycle),
-  );
-}
 
 export function orderRegions(regions: Region[]): Region[] {
   const uniqueRegions = new Set(regions);
@@ -332,18 +313,6 @@ export function createPricingDetails(seed?: PricePerUnit): PricingDetails {
   return createPricingDetailsForCycle(billingCycle, seed);
 }
 
-export function createPricingDetailsByCycle(
-  seed?: PricePerUnit,
-): PricingDetailsByCycle {
-  return {
-    monthly: createPricingDetailsForCycle("monthly", seed),
-    quarterly: createPricingDetailsForCycle("quarterly", seed),
-    half_yearly: createPricingDetailsForCycle("half_yearly", seed),
-    yearly: createPricingDetailsForCycle("yearly", seed),
-    one_time: createPricingDetailsForCycle("one_time", seed),
-  };
-}
-
 export function syncPricingDetailsForBillingCycle(input: {
   pricingDetails: PricingDetails;
   nextBillingCycle: BillingCycle;
@@ -382,41 +351,6 @@ export function pricingDetailsFromPricingOption(
   return createPricingDetails(pricingOption ?? createEmptyPricePerUnit());
 }
 
-export function pricingDetailsFromPricingOptions(
-  pricingOptions: PricePerUnit[],
-): PricingDetails {
-  return pricingDetailsFromPricingOption(pricingOptions[0]);
-}
-
-export function pricingDetailsByCycleFromPricingOptions(
-  pricingOptions: PricePerUnit[],
-): PricingDetailsByCycle {
-  const pricingDetailsByCycle = createPricingDetailsByCycle(pricingOptions[0]);
-
-  for (const pricingOption of pricingOptions) {
-    pricingDetailsByCycle[pricingOption.billingCycle] = createPricingDetails(
-      pricingOption,
-    );
-  }
-
-  return pricingDetailsByCycle;
-}
-
-export function billingCyclesFromPricingOptions(
-  pricingOptions: PricePerUnit[],
-) {
-  return orderBillingCycles(
-    pricingOptions.map((pricingOption) => pricingOption.billingCycle),
-  );
-}
-
-export function buildPricingOptionsFromDetails(input: {
-  billingCycle: BillingCycle;
-  pricingDetails: PricingDetails;
-}): PricePerUnit[] {
-  return [buildPricingOptionFromDetails(input)];
-}
-
 export function buildPricingOptionFromDetails(input: {
   billingCycle: BillingCycle;
   pricingDetails: PricingDetails;
@@ -429,24 +363,6 @@ export function buildPricingOptionFromDetails(input: {
     ratePeriod: defaultRatePeriodsByCycle[input.billingCycle],
     ...buildDiscountFields(input.pricingDetails),
   };
-}
-
-export function buildPricingOptionsFromCycleDetails(input: {
-  billingCycles: BillingCycle[];
-  pricingDetailsByCycle: PricingDetailsByCycle;
-}): PricePerUnit[] {
-  return orderBillingCycles(input.billingCycles).map((billingCycle) => {
-    const pricingDetails = input.pricingDetailsByCycle[billingCycle];
-
-    return {
-      billingCycle,
-      amount: pricingDetails.amount,
-      currency: pricingDetails.currency,
-      entity: defaultChargedPer,
-      ratePeriod: defaultRatePeriodsByCycle[billingCycle],
-      ...buildDiscountFields(pricingDetails),
-    };
-  });
 }
 
 export function createEmptyPricePerUnit(
@@ -534,34 +450,12 @@ export function normalizePricingOptionForComparison(
   };
 }
 
-export function normalizePricingOptionsForComparison(
-  pricingOptions: PricePerUnit[],
-): PricePerUnit[] {
-  return pricingOptions.length === 0
-    ? []
-    : [normalizePricingOptionForComparison(pricingOptions[0]!)];
-}
-
 export function hasValidPricingOption(pricingOption: PricePerUnit): boolean {
   return (
     pricingOption.amount.trim().length > 0 &&
     pricingOption.currency.trim().length > 0 &&
     hasValidDiscountFields(pricingOption)
   );
-}
-
-export function hasValidPricingOptions(
-  pricingOptions: PricePerUnit[],
-): boolean {
-  return pricingOptions.length === 1 && hasValidPricingOption(pricingOptions[0]!);
-}
-
-export function normalizePricingOptions(
-  pricingOptions: PricePerUnit[],
-): PricePerUnit[] {
-  return pricingOptions.length === 0
-    ? []
-    : [normalizePricePerUnit(pricingOptions[0]!)];
 }
 
 export function sameLabel(left?: string, right?: string): boolean {

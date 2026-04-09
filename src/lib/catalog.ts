@@ -6,7 +6,6 @@ import type {
   SkuPurchaseType,
   Sku,
 } from "@/types";
-import { orderBillingCycles } from "@/lib/billing-option";
 import {
   areEquivalentDecimalValues,
   calculateDiscountPercentage,
@@ -71,14 +70,6 @@ export function formatBillingCycle(pricingOption?: PricePerUnit) {
   if (!pricingOption) return "No pricing configured";
 
   return formatBillingCycleLabel(pricingOption.billingCycle);
-}
-
-export function formatBillingCycles(pricingOptions: PricePerUnit[] = []) {
-  if (pricingOptions.length === 0) return "No pricing configured";
-
-  return orderBillingCycles(pricingOptions.map((option) => option.billingCycle))
-    .map((billingCycle) => formatBillingCycleLabel(billingCycle))
-    .join(" / ");
 }
 
 function formatRatePeriodLabel(ratePeriod?: string) {

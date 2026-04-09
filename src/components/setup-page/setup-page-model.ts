@@ -1,19 +1,19 @@
 import type { ProductPricingPlan, ProductSearchResult } from "@/lib/api";
 import {
-  buildPricingOptionsFromDetails,
+  buildPricingOptionFromDetails,
   buildPurchaseConstraints,
   buildSkuCode,
   createPricingDetails,
   ensureUniqueSkuCode,
-  hasValidPricingOptions as hasValidPricingOptionsForOffer,
+  hasValidPricingOption as hasValidPricingOptionForOffer,
   hasValidPurchaseConstraints,
   inferSkuPurchaseTypeFromBillingCycle,
   isStockTrackingEnabled,
   normalizeBillingCycleForPurchaseType,
-  normalizePricingOptionsForComparison,
-  normalizePricingOptions,
+  normalizePricingOptionForComparison,
+  normalizePricePerUnit,
   pricePerUnitFromPlan,
-  pricingDetailsFromPricingOptions,
+  pricingDetailsFromPricingOption,
   purchaseConstraintsToFormValues,
   sameLabel,
 } from "@/lib/billing-option";
@@ -49,8 +49,8 @@ export type RegionDraft = {
 export type RegionEntry = {
   region: Region;
   draft: RegionDraft;
-  pricingOptions: PricePerUnit[];
-  normalizedPricingOptions: PricePerUnit[];
+  pricingOption: PricePerUnit;
+  normalizedPricingOption: PricePerUnit;
   purchaseConstraints?: PurchaseConstraints;
   normalizedActivationTimeline?: string;
   existingSku?: Sku;
@@ -91,7 +91,6 @@ export type SetupPageDerivedState = {
   regionEntries: RegionEntry[];
   activeRegionEntry?: RegionEntry;
   activeDraft: RegionDraft;
-  reviewPricingOptions: PricePerUnit[];
   existingRegions: Region[];
   summary: SetupPageSummary;
 };
@@ -163,7 +162,7 @@ export function regionDraftFromExisting(
   return {
     purchaseType: sku.purchaseType,
     billingCycle,
-    pricingDetails: pricingDetailsFromPricingOptions([sku.pricingOption]),
+    pricingDetails: pricingDetailsFromPricingOption(sku.pricingOption),
     minimumUnits: purchaseConstraintValues.minUnits,
     maximumUnits: purchaseConstraintValues.maxUnits,
     activationTimeline: sku.activationTimeline ?? "",
@@ -172,13 +171,13 @@ export function regionDraftFromExisting(
   };
 }
 
-function samePricingOptions(
-  left: PricePerUnit[],
-  right: PricePerUnit[],
+function samePricingOption(
+  left: PricePerUnit,
+  right: PricePerUnit,
 ): boolean {
   return (
-    JSON.stringify(normalizePricingOptionsForComparison(left)) ===
-    JSON.stringify(normalizePricingOptionsForComparison(right))
+    JSON.stringify(normalizePricingOptionForComparison(left)) ===
+    JSON.stringify(normalizePricingOptionForComparison(right))
   );
 }
 
@@ -219,8 +218,8 @@ function uniquePlanNames(planNames: string[]): string[] {
   return uniqueNames;
 }
 
-function buildDraftPricingOptions(draft: RegionDraft) {
-  return buildPricingOptionsFromDetails({
+function buildDraftPricingOption(draft: RegionDraft) {
+  return buildPricingOptionFromDetails({
     billingCycle: draft.billingCycle,
     pricingDetails: draft.pricingDetails,
   });
@@ -259,8 +258,8 @@ export function buildRegionEntries(input: {
           (pool) => pool.skuId === existingSku._id,
         )
       : undefined;
-    const pricingOptions = buildDraftPricingOptions(draft);
-    const normalizedPricingOptions = normalizePricingOptions(pricingOptions);
+    const pricingOption = buildDraftPricingOption(draft);
+    const normalizedPricingOption = normalizePricePerUnit(pricingOption);
     const purchaseConstraints = buildPurchaseConstraints({
       minUnits: draft.minimumUnits,
       maxUnits: draft.maximumUnits,
@@ -279,7 +278,7 @@ export function buildRegionEntries(input: {
       : existingSku
         ? existingSku.code
         : ensureUniqueSkuCode(baseCode, existingSkuCodes);
-    const hasPricing = hasValidPricingOptionsForOffer(pricingOptions);
+    const hasPricing = hasValidPricingOptionForOffer(pricingOption);
     const hasValidConstraints = hasValidPurchaseConstraints({
       minUnits: draft.minimumUnits,
       maxUnits: draft.maximumUnits,
@@ -293,10 +292,7 @@ export function buildRegionEntries(input: {
     const offerChanged = existingSku
       ? generatedSkuCode !== existingSku.code ||
         existingSku.purchaseType !== draft.purchaseType ||
-        !samePricingOptions(
-          normalizedPricingOptions,
-          [existingSku.pricingOption],
-        ) ||
+        !samePricingOption(normalizedPricingOption, existingSku.pricingOption) ||
         !samePurchaseConstraints(
           purchaseConstraints,
           existingSku.purchaseConstraints,
@@ -327,8 +323,8 @@ export function buildRegionEntries(input: {
     return {
       region,
       draft,
-      pricingOptions,
-      normalizedPricingOptions,
+      pricingOption,
+      normalizedPricingOption,
       purchaseConstraints,
       normalizedActivationTimeline,
       existingSku,
@@ -534,7 +530,6 @@ export function buildSetupPageDerivedState(input: {
   });
   const activeDraft =
     activeRegionEntry?.draft ?? createRegionDraft(planPricingSeed);
-  const reviewPricingOptions = activeRegionEntry?.pricingOptions ?? [];
   const existingRegions = input.selectedRegions.filter((region) =>
     regionEntries.some((entry) => entry.region === region && entry.existingSku),
   );
@@ -549,7 +544,6 @@ export function buildSetupPageDerivedState(input: {
     regionEntries,
     activeRegionEntry,
     activeDraft,
-    reviewPricingOptions,
     existingRegions,
     summary,
   };

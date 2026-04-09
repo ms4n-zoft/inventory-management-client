@@ -24,7 +24,7 @@ export async function submitSetupEntries(input: {
           region: entry.region,
           seatType: entry.existingSku.seatType,
           purchaseType: entry.draft.purchaseType,
-          pricingOption: entry.normalizedPricingOptions[0]!,
+          pricingOption: entry.normalizedPricingOption,
           purchaseConstraints: entry.purchaseConstraints,
           activationTimeline: entry.normalizedActivationTimeline,
         });
@@ -46,7 +46,7 @@ export async function submitSetupEntries(input: {
             region: entry.region,
             seatType: "seat",
             purchaseType: entry.draft.purchaseType,
-            pricingOption: entry.normalizedPricingOptions[0]!,
+            pricingOption: entry.normalizedPricingOption,
             purchaseConstraints: entry.purchaseConstraints,
             activationTimeline: entry.normalizedActivationTimeline,
           },
@@ -70,7 +70,7 @@ export async function submitSetupEntries(input: {
           region: entry.region,
           seatType: "seat",
           purchaseType: entry.draft.purchaseType,
-          pricingOption: entry.normalizedPricingOptions[0]!,
+          pricingOption: entry.normalizedPricingOption,
           purchaseConstraints: entry.purchaseConstraints,
           activationTimeline: entry.normalizedActivationTimeline,
         });
