@@ -49,17 +49,36 @@ import type {
 
 const MAX_LICENSE_DOCUMENT_BYTES = 10485760;
 
-function encodeBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
 
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, index + chunkSize);
-    binary += String.fromCharCode(...chunk);
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("Unable to read file contents."));
+        return;
+      }
+
+      resolve(reader.result);
+    };
+
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Unable to read file contents."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+async function encodeBase64FromFile(file: File): Promise<string> {
+  const dataUrl = await readFileAsDataUrl(file);
+  const base64 = dataUrl.split(",", 2)[1];
+
+  if (!base64) {
+    throw new Error("Unable to encode file contents.");
   }
 
-  return btoa(binary);
+  return base64;
 }
 
 function formatRecord(record?: Record<string, string>) {
@@ -331,9 +350,7 @@ export function SalesPage({
             fileName: licenseDocumentFile.name,
             uploadedAt: activationPayload.licenseDocument?.uploadedAt,
             contentType: licenseDocumentFile.type || undefined,
-            contentBase64: encodeBase64(
-              await licenseDocumentFile.arrayBuffer(),
-            ),
+            contentBase64: await encodeBase64FromFile(licenseDocumentFile),
           };
         }
 
