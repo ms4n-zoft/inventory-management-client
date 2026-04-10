@@ -621,7 +621,7 @@ export function SalesPage({
                                 setActivationDialogSaleId(entry.sale._id)
                               }
                             >
-                              Update
+                              Action
                             </Button>
                           ) : null}
                         </TableCell>
