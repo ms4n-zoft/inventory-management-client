@@ -410,6 +410,7 @@ describe("api sku response normalization", () => {
             _id: "sale-1",
             skuId: "sku-1",
             skuCode: "pipedrive-starter-pack-india",
+            saleType: "new_sale",
             quantity: 2,
             partner: {
               name: "Zoftware Reseller",
@@ -490,6 +491,7 @@ describe("api sku response normalization", () => {
       expect.objectContaining({
         sale: expect.objectContaining({
           skuCode: "pipedrive-starter-pack-india",
+          saleType: "new_sale",
           quantity: 2,
           payment: expect.objectContaining({
             amount: "59.01",

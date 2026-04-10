@@ -42,6 +42,7 @@ import type {
   NotificationStatus,
   PurchasedBillingCycle,
   PurchaseType,
+  SaleType,
   SaleListEntry,
   SaleFulfillmentMode,
   Sku,
@@ -90,6 +91,17 @@ function getPurchaseTypeLabel(sku: Sku) {
     sku.pricingOption.billingCycle === "one_time"
     ? "One Time"
     : "Subscription";
+}
+
+function getSaleTypeLabel(saleType?: SaleType) {
+  switch (saleType) {
+    case "renewal_sale":
+      return "Renewal sale";
+    case "cancel_sale":
+      return "Cancel sale";
+    default:
+      return "New sale";
+  }
 }
 
 function getActivationStatusLabel(status?: ActivationStatus) {
@@ -169,6 +181,10 @@ function getPurchasedBillingCycleLabel(value?: PurchasedBillingCycle) {
 }
 
 function getFulfillmentModeLabel(value?: SaleFulfillmentMode) {
+  if (value === "license_key") {
+    return "License key";
+  }
+
   if (value === "email_based") {
     return "Email based";
   }
@@ -197,9 +213,9 @@ export function SalesPage({
   ) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
-  const [activeView, setActiveView] = useState<"work_queue" | "activated">(
-    "work_queue",
-  );
+  const [activeView, setActiveView] = useState<
+    "work_queue" | "activated" | "events"
+  >("work_queue");
   const [expandedSales, setExpandedSales] = useState<Record<string, boolean>>(
     {},
   );
@@ -231,6 +247,8 @@ export function SalesPage({
           { name: "plan.name", weight: 0.08 },
           { name: "sku.code", weight: 0.12 },
           { name: "sku.region", weight: 0.04 },
+          { name: "sale.saleType", weight: 0.04 },
+          { name: "sale.relatedSaleReference", weight: 0.06 },
           { name: "sale.partner.name", weight: 0.14 },
           { name: "sale.partner.saleReference", weight: 0.12 },
           { name: "sale.customer.name", weight: 0.08 },
@@ -251,35 +269,59 @@ export function SalesPage({
   const workQueueSales = useMemo(
     () =>
       filteredSales.filter(
-        (entry) => entry.activation?.activationStatus !== "completed",
+        (entry) =>
+          entry.sale.saleType !== "cancel_sale" &&
+          entry.activation?.activationStatus !== "completed",
       ),
     [filteredSales],
   );
   const activatedSales = useMemo(
     () =>
       filteredSales.filter(
-        (entry) => entry.activation?.activationStatus === "completed",
+        (entry) =>
+          entry.sale.saleType !== "cancel_sale" &&
+          entry.activation?.activationStatus === "completed",
       ),
+    [filteredSales],
+  );
+  const eventSales = useMemo(
+    () => filteredSales.filter((entry) => entry.sale.saleType === "cancel_sale"),
     [filteredSales],
   );
   const totalWorkQueueSales = useMemo(
     () =>
       sales.filter(
-        (entry) => entry.activation?.activationStatus !== "completed",
+        (entry) =>
+          entry.sale.saleType !== "cancel_sale" &&
+          entry.activation?.activationStatus !== "completed",
       ).length,
     [sales],
   );
   const totalActivatedSales = useMemo(
     () =>
       sales.filter(
-        (entry) => entry.activation?.activationStatus === "completed",
+        (entry) =>
+          entry.sale.saleType !== "cancel_sale" &&
+          entry.activation?.activationStatus === "completed",
       ).length,
     [sales],
   );
+  const totalEventSales = useMemo(
+    () => sales.filter((entry) => entry.sale.saleType === "cancel_sale").length,
+    [sales],
+  );
   const visibleSales =
-    activeView === "activated" ? activatedSales : workQueueSales;
+    activeView === "activated"
+      ? activatedSales
+      : activeView === "events"
+        ? eventSales
+        : workQueueSales;
   const currentTotalCount =
-    activeView === "activated" ? totalActivatedSales : totalWorkQueueSales;
+    activeView === "activated"
+      ? totalActivatedSales
+      : activeView === "events"
+        ? totalEventSales
+        : totalWorkQueueSales;
 
   const activeActivationEntry =
     sales.find((entry) => entry.sale._id === activationDialogSaleId) ?? null;
@@ -381,8 +423,8 @@ export function SalesPage({
     <>
       <ViewSearchCard
         title="Browse sales"
-        description="Search partner-reported sales by product, SKU code, partner reference, customer, or payment details."
-        placeholder="Search by product, sku code, partner, customer, or transaction"
+        description="Search partner-reported sales by product, SKU code, sale type, partner reference, related reference, customer, or payment details."
+        placeholder="Search by product, sku code, sale type, partner, customer, or transaction"
         query={query}
         onQueryChange={setQuery}
         resultCount={visibleSales.length}
@@ -394,15 +436,15 @@ export function SalesPage({
         <CardHeader>
           <CardTitle>Recorded sales</CardTitle>
           <CardDescription>
-            Keep active fulfillment work separate from sales that are already
-            completed.
+            Keep active fulfillment work separate from completed activations and
+            event-only cancellation records.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs
             value={activeView}
             onValueChange={(value) =>
-              setActiveView(value as "work_queue" | "activated")
+              setActiveView(value as "work_queue" | "activated" | "events")
             }
             className="mb-4"
           >
@@ -412,6 +454,9 @@ export function SalesPage({
               </TabsTrigger>
               <TabsTrigger value="activated">
                 Activated sales ({totalActivatedSales})
+              </TabsTrigger>
+              <TabsTrigger value="events">
+                Sale events ({totalEventSales})
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -431,6 +476,8 @@ export function SalesPage({
                 <EmptyTitle>
                   {sales.length === 0 && !query.trim()
                     ? "No sales recorded"
+                    : activeView === "events"
+                      ? "No sale events matched"
                     : activeView === "activated"
                       ? "No activated sales matched"
                       : "No work-queue sales matched"}
@@ -438,6 +485,8 @@ export function SalesPage({
                 <EmptyDescription>
                   {sales.length === 0 && !query.trim()
                     ? "Seed or record a partner sale and it will appear here."
+                    : activeView === "events"
+                      ? "Try a broader search term or record a cancellation event to see it here."
                     : activeView === "activated"
                       ? "Complete an activation or broaden the search to see processed sales here."
                       : "Try a broader search term or clear the current filter."}
@@ -471,6 +520,7 @@ export function SalesPage({
                   const purchaseTypeLabel = skuDetails
                     ? getPurchaseTypeLabel(skuDetails)
                     : undefined;
+                  const saleTypeLabel = getSaleTypeLabel(entry.sale.saleType);
                   const activationStatusLabel = getActivationStatusLabel(
                     entry.activation?.activationStatus,
                   );
@@ -482,6 +532,8 @@ export function SalesPage({
                     );
                   const isCompletedActivation =
                     entry.activation?.activationStatus === "completed";
+                  const isEventOnlySale = entry.sale.saleType === "cancel_sale";
+                  const canTakeAction = !isEventOnlySale && !isCompletedActivation;
                   const isSkuLoading = Boolean(
                     skuLoadStateById[entry.sale.skuId],
                   );
@@ -518,6 +570,17 @@ export function SalesPage({
                               >
                                 {activationStatusLabel}
                               </Badge>
+                              <Badge
+                                variant={
+                                  entry.sale.saleType === "cancel_sale"
+                                    ? "destructive"
+                                    : entry.sale.saleType === "renewal_sale"
+                                      ? "secondary"
+                                      : "outline"
+                                }
+                              >
+                                {saleTypeLabel}
+                              </Badge>
                               {purchaseTypeLabel ? (
                                 <Badge variant="secondary">
                                   {purchaseTypeLabel}
@@ -534,6 +597,11 @@ export function SalesPage({
                             <span className="text-sm text-muted-foreground">
                               Ref: {entry.sale.partner.saleReference}
                             </span>
+                            {entry.sale.relatedSaleReference ? (
+                              <span className="text-sm text-muted-foreground">
+                                Related: {entry.sale.relatedSaleReference}
+                              </span>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="align-top">
@@ -612,7 +680,7 @@ export function SalesPage({
                             {isExpanded ? "Hide details" : "Show details"}
                           </Button>
                           <br />
-                          {!isCompletedActivation ? (
+                          {canTakeAction ? (
                             <Button
                               type="button"
                               variant="default"
@@ -623,6 +691,10 @@ export function SalesPage({
                             >
                               Action
                             </Button>
+                          ) : isEventOnlySale ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              No fulfillment action
+                            </p>
                           ) : null}
                         </TableCell>
                       </TableRow>
@@ -692,9 +764,43 @@ export function SalesPage({
                                   </p>
                                 </div>
 
-                                {entry.activation ? (
-                                  <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                                    <div className="rounded-lg border bg-muted/20 p-3">
+                                <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                  <div className="rounded-lg border bg-muted/20 p-3">
+                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                      Sale record
+                                    </p>
+                                    <div className="mt-2 space-y-1 text-sm">
+                                      <p>
+                                        <span className="font-medium capitalize">
+                                          Type:{" "}
+                                        </span>
+                                        <span className="text-sm text-muted-foreground sm:text-right">
+                                          {saleTypeLabel}
+                                        </span>
+                                      </p>
+                                      <p>
+                                        <span className="font-medium capitalize">
+                                          Reference:{" "}
+                                        </span>
+                                        <span className="text-sm text-muted-foreground sm:text-right">
+                                          {entry.sale.partner.saleReference}
+                                        </span>
+                                      </p>
+                                      <p>
+                                        <span className="font-medium capitalize">
+                                          Related sale:{" "}
+                                        </span>
+                                        <span className="text-sm text-muted-foreground sm:text-right">
+                                          {entry.sale.relatedSaleReference ??
+                                            "Not linked"}
+                                        </span>
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {entry.activation ? (
+                                    <>
+                                      <div className="rounded-lg border bg-muted/20 p-3">
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                                         Fulfillment
                                       </p>
@@ -733,7 +839,7 @@ export function SalesPage({
                                       </div>
                                     </div>
 
-                                    <div className="rounded-lg border bg-muted/20 p-3">
+                                      <div className="rounded-lg border bg-muted/20 p-3">
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                                         Access window
                                       </p>
@@ -771,7 +877,7 @@ export function SalesPage({
                                       </div>
                                     </div>
 
-                                    <div className="rounded-lg border bg-muted/20 p-3">
+                                      <div className="rounded-lg border bg-muted/20 p-3">
                                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                                         Delivery
                                       </p>
@@ -806,18 +912,19 @@ export function SalesPage({
                                       </div>
                                     </div>
 
-                                    {entry.activation.notes ? (
-                                      <div className="rounded-lg border bg-muted/20 p-3 md:col-span-1 lg:col-span-3">
-                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                          Ops notes
-                                        </p>
-                                        <p className="mt-2 text-sm">
-                                          {entry.activation.notes}
-                                        </p>
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                ) : null}
+                                      {entry.activation.notes ? (
+                                        <div className="rounded-lg border bg-muted/20 p-3 md:col-span-1 lg:col-span-3">
+                                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                            Ops notes
+                                          </p>
+                                          <p className="mt-2 text-sm">
+                                            {entry.activation.notes}
+                                          </p>
+                                        </div>
+                                      ) : null}
+                                    </>
+                                  ) : null}
+                                </div>
                               </div>
                             ) : null}
                           </TableCell>

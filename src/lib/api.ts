@@ -146,6 +146,7 @@ function normalizeSaleListEntry(entry: SaleListEntry): SaleListEntry {
     sku: normalizeSku(entry.sku),
     sale: {
       ...entry.sale,
+      saleType: entry.sale.saleType ?? "new_sale",
       payment: {
         ...entry.sale.payment,
         amount:

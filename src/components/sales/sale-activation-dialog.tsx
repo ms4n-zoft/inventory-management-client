@@ -183,6 +183,10 @@ export function SaleActivationDialog({
     return null;
   }
 
+  if (entry.sale.saleType === "cancel_sale") {
+    return null;
+  }
+
   const purchaseType = inferPurchaseType(entry);
   const billingCyclePurchased = inferBillingCyclePurchased(entry);
   const isOneTimeSku =
@@ -408,4 +412,3 @@ export function SaleActivationDialog({
     </Dialog>
   );
 }
-

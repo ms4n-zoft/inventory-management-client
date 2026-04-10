@@ -77,6 +77,7 @@ const sales: SaleListEntry[] = [
       _id: "sale-1",
       skuId: "sku-1",
       skuCode: "pipedrive-starter-pack-india",
+      saleType: "new_sale",
       quantity: 2,
       partner: {
         name: "Zoftware Reseller",
@@ -139,6 +140,7 @@ const sales: SaleListEntry[] = [
       _id: "sale-2",
       skuId: "sku-2",
       skuCode: "slack-business-gcc",
+      saleType: "new_sale",
       quantity: 3,
       partner: {
         name: "Channel Partner One",
@@ -209,7 +211,7 @@ describe("sales page", () => {
     await act(async () => {
       fireEvent.change(
         screen.getByPlaceholderText(
-          /search by product, sku code, partner, customer, or transaction/i,
+          /search by product, sku code, sale type, partner, customer, or transaction/i,
         ),
         {
           target: { value: "channel partner one" },
@@ -306,7 +308,7 @@ describe("sales page", () => {
       }),
     );
 
-    expect(await screen.findByText(/^one-time$/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^one time$/i)).toBeInTheDocument();
   });
 
   it("previews completion details and saves optional license data", async () => {
@@ -337,7 +339,7 @@ describe("sales page", () => {
 
     render(<SalesPage sales={sales} loading={false} />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: /^update$/i })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: /^action$/i })[0]!);
 
     expect(screen.queryByText(/^fulfillment mode$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^purchase type$/i)).not.toBeInTheDocument();
@@ -425,6 +427,7 @@ describe("sales page", () => {
           _id: "sale-one-time",
           skuId: "sku-one-time",
           skuCode: "miro-lifetime-gcc",
+          saleType: "new_sale",
           purchaseType: "one_time",
           billingCyclePurchased: "one_time",
           quantity: 1,
@@ -487,7 +490,7 @@ describe("sales page", () => {
 
     render(<SalesPage sales={oneTimeSales} loading={false} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /^update$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^action$/i }));
 
     expect(
       screen.queryByLabelText(/renewal \/ access end date/i),
@@ -505,7 +508,118 @@ describe("sales page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the update action in the activated tab and shows completion details", async () => {
+  it("routes cancel sales to the sale events tab and hides fulfillment actions", async () => {
+    vi.mocked(api.getSku).mockResolvedValue({
+      _id: "sku-cancel",
+      planId: "plan-cancel",
+      code: "hubspot-sales-gcc",
+      region: "GCC",
+      seatType: "seat",
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption("monthly", "24", "USD", "license"),
+      purchaseConstraints: {
+        minUnits: 1,
+        maxUnits: 10,
+      },
+      activationTimeline: "Instant",
+      isBillingDisabled: false,
+      createdAt: "2026-03-26T00:00:00.000Z",
+    });
+
+    const saleEvents: SaleListEntry[] = [
+      ...sales,
+      {
+        sale: {
+          _id: "sale-cancel",
+          skuId: "sku-cancel",
+          skuCode: "hubspot-sales-gcc",
+          saleType: "cancel_sale",
+          relatedSaleReference: "sale-1001",
+          billingCyclePurchased: "monthly",
+          purchaseType: "subscription",
+          quantity: 1,
+          partner: {
+            name: "Zoftware Reseller",
+            saleReference: "sale-cancel-1001",
+          },
+          customer: {
+            name: "Mina Ali",
+            email: "mina@example.com",
+            phone: "+971500000777",
+          },
+          payment: {
+            provider: "stripe",
+            transactionId: "txn-cancel-1001",
+            amount: "24",
+            currency: "USD",
+            status: "captured",
+          },
+          createdAt: "2026-03-26T08:00:00.000Z",
+        },
+        sku: {
+          _id: "sku-cancel",
+          planId: "plan-cancel",
+          code: "hubspot-sales-gcc",
+          region: "GCC",
+          seatType: "seat",
+          purchaseType: "subscription" as const,
+          pricingOption: pricingOption("monthly", "24", "USD", "license"),
+          purchaseConstraints: {
+            minUnits: 1,
+            maxUnits: 10,
+          },
+          createdAt: "2026-03-26T00:00:00.000Z",
+        },
+        plan: {
+          _id: "plan-cancel",
+          productId: "product-cancel",
+          name: "Sales Hub",
+          planType: "standard",
+          createdAt: "2026-03-26T00:00:00.000Z",
+        },
+        product: {
+          _id: "product-cancel",
+          externalId: "hubspot-sales",
+          name: "HubSpot",
+          vendor: "HubSpot",
+          description: "CRM",
+          logoUrl: "",
+          createdAt: "2026-03-26T00:00:00.000Z",
+        },
+      },
+    ];
+
+    render(<SalesPage sales={saleEvents} loading={false} />);
+
+    const eventsTab = screen.getByRole("tab", {
+      name: /sale events \(1\)/i,
+    });
+    fireEvent.mouseDown(eventsTab);
+    fireEvent.click(eventsTab);
+
+    await waitFor(() => {
+      expect(screen.getByText("HubSpot")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: /^action$/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/no fulfillment action/i)).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /show sku details for hubspot/i,
+      }),
+    );
+
+    expect(
+      await screen.findByText(byNormalizedText("Type: Cancel sale")),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(byNormalizedText("Related sale: sale-1001")),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the action button in the activated tab and shows completion details", async () => {
     vi.mocked(api.getSku).mockResolvedValue({
       _id: "sku-3",
       planId: "plan-3",
@@ -535,6 +649,7 @@ describe("sales page", () => {
           _id: "sale-3",
           skuId: "sku-3",
           skuCode: "zoom-business-gcc",
+          saleType: "new_sale",
           billingCyclePurchased: "monthly",
           purchaseType: "subscription",
           quantity: 1,
@@ -631,7 +746,7 @@ describe("sales page", () => {
       expect(screen.getByText("Zoom")).toBeInTheDocument();
     });
     expect(
-      screen.queryByRole("button", { name: /^update$/i }),
+      screen.queryByRole("button", { name: /^action$/i }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(
@@ -641,7 +756,7 @@ describe("sales page", () => {
     );
 
     expect(
-      await screen.findByText(byNormalizedText("Method: License key")),
+      await screen.findByText(byNormalizedText("Method: Email based")),
     ).toBeInTheDocument();
     expect(
       screen.getByText(byNormalizedText("Purchase type: Subscription")),
@@ -692,6 +807,7 @@ describe("sales page", () => {
           _id: "sale-4",
           skuId: "sku-4",
           skuCode: "notion-plus-gcc",
+          saleType: "new_sale",
           billingCyclePurchased: "monthly",
           purchaseType: "subscription",
           quantity: 1,
@@ -832,6 +948,7 @@ describe("sales page", () => {
           _id: "sale-5",
           skuId: "sku-5",
           skuCode: "figma-pro-gcc",
+          saleType: "new_sale",
           billingCyclePurchased: "monthly",
           purchaseType: "subscription",
           quantity: 1,

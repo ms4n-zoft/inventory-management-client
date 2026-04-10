@@ -11,7 +11,8 @@ export type PurchasedBillingCycle =
   | "unknown";
 export type SkuPurchaseType = "subscription" | "one_time";
 export type PurchaseType = "subscription" | "one_time" | "unknown";
-export type SaleFulfillmentMode = "email_based";
+export type SaleType = "new_sale" | "renewal_sale" | "cancel_sale";
+export type SaleFulfillmentMode = "license_key" | "email_based";
 export type ActivationStatus = "pending" | "processing" | "completed" | "failed";
 export type NotificationStatus = "not_queued" | "queued" | "failed";
 
@@ -103,6 +104,8 @@ export type Sale = {
   _id: string;
   skuId: string;
   skuCode: string;
+  saleType: SaleType;
+  relatedSaleReference?: string;
   billingCyclePurchased?: PurchasedBillingCycle;
   purchaseType?: PurchaseType;
   quantity: number;
