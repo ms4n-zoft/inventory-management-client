@@ -365,7 +365,7 @@ export function OperationsApp() {
           </div>
         </header>
 
-        <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6">
+        <main className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 md:px-6">
           <Routes>
             <Route
               path="/"
@@ -406,7 +406,9 @@ export function OperationsApp() {
             />
             <Route
               path="/sales"
-              element={<SalesPage sales={sales} loading={loading} />}
+              element={
+                <SalesPage sales={sales} loading={loading} runAction={runAction} />
+              }
             />
             <Route path="*" element={<NavigateToOverview />} />
           </Routes>

@@ -12,27 +12,25 @@ export function App() {
     <TooltipProvider delayDuration={150}>
       <AuthProvider>
         <BrowserRouter>
-          <div className="dark">
-            <Routes>
-              <Route
-                path="/login"
-                element={
-                  <RequireGuest>
-                    <LoginPage />
-                  </RequireGuest>
-                }
-              />
-              <Route
-                path="/*"
-                element={
-                  <RequireAuth>
-                    <OperationsApp />
-                  </RequireAuth>
-                }
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
+          <Routes>
+            <Route
+              path="/login"
+              element={
+                <RequireGuest>
+                  <LoginPage />
+                </RequireGuest>
+              }
+            />
+            <Route
+              path="/*"
+              element={
+                <RequireAuth>
+                  <OperationsApp />
+                </RequireAuth>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>

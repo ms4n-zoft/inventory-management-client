@@ -36,7 +36,7 @@ const pricingOption = (
   amount: string,
   currency = "USD",
   entity = "user",
-  ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
+  ratePeriod: string = billingCycle,
   discount?: {
     discountPercentage?: string;
     discountedAmount?: string;
@@ -78,7 +78,8 @@ const catalogResponse = {
     code: "jira-standard-gcc",
     region: "GCC" as const,
     seatType: "seat" as const,
-    pricingOptions: [pricingOption("monthly", "18")],
+    purchaseType: "subscription" as const,
+    pricingOption: pricingOption("monthly", "18"),
     purchaseConstraints: {
       minUnits: 1,
     },
@@ -116,21 +117,6 @@ async function searchAndSelectProduct() {
   });
 }
 
-async function selectComboboxOption(index: number, optionLabel: string) {
-  await act(async () => {
-    fireEvent.click(screen.getAllByRole("combobox")[index]!);
-  });
-
-  const candidates = screen.getAllByText(new RegExp(`^${optionLabel}$`, "i"));
-  const optionNode = candidates.find(
-    (candidate) => candidate.tagName !== "OPTION",
-  );
-
-  await act(async () => {
-    fireEvent.click(optionNode ?? candidates[0]!);
-  });
-}
-
 async function toggleRegion(optionLabel: string) {
   const optionPattern = new RegExp(`^${optionLabel}$`, "i");
 
@@ -146,6 +132,19 @@ async function toggleBillingCycle(optionLabel: string) {
         name: new RegExp(`^${optionLabel}$`, "i"),
       }),
     );
+  });
+}
+
+async function selectComboboxOption(
+  comboboxLabel: RegExp,
+  optionLabel: RegExp,
+) {
+  await act(async () => {
+    fireEvent.click(screen.getByRole("combobox", { name: comboboxLabel }));
+  });
+
+  await act(async () => {
+    fireEvent.click(screen.getByRole("option", { name: optionLabel }));
   });
 }
 
@@ -243,7 +242,7 @@ describe("setup page", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByDisplayValue("jira-best-value-gcc"),
+        screen.getByDisplayValue("jira-best-value-gcc-monthly"),
       ).toBeInTheDocument();
     });
 
@@ -251,7 +250,92 @@ describe("setup page", () => {
     expect(screen.getByPlaceholderText(/^e\.g\. 7$/i)).toHaveValue(7);
   });
 
-  it("creates starting stock together with separate monthly and yearly pricing", async () => {
+  it("generates a one_time catalog code for perpetual licenses", async () => {
+    vi.spyOn(api, "getProductPricing").mockResolvedValue([
+      {
+        plan: "Standard",
+        amount: "18",
+        currency: "USD",
+        entity: "user",
+        period: "month",
+      },
+    ]);
+    const addCatalogEntry = vi.spyOn(api, "addCatalogEntry").mockResolvedValue({
+      ...catalogResponse,
+      sku: {
+        ...catalogResponse.sku,
+        code: "jira-standard-gcc-one_time",
+        purchaseType: "one_time" as const,
+        pricingOption: pricingOption("one_time", "18"),
+      },
+    });
+    const runAction: ActionRunner = async (work) => {
+      await work();
+      return true;
+    };
+
+    render(
+      <SetupPage
+        snapshot={emptySnapshot}
+        loading={false}
+        runAction={runAction}
+      />,
+    );
+
+    await searchAndSelectProduct();
+    await toggleRegion("GCC");
+
+    await waitFor(() => {
+      expect(
+        screen.getByDisplayValue("jira-standard-gcc-monthly"),
+      ).toBeInTheDocument();
+    });
+
+    await selectComboboxOption(/purchase type/i, /perpetual license/i);
+
+    await waitFor(() => {
+      expect(
+        screen.getByDisplayValue("jira-standard-gcc-one_time"),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole("combobox", { name: /billing cycle/i }),
+    ).toBeDisabled();
+    expect(getPricingAmountInput("one_time")).toHaveValue("18");
+
+    const dialog = await openReviewDialog();
+
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: /create offers/i }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(addCatalogEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sku: expect.objectContaining({
+            code: "jira-standard-gcc-one_time",
+            region: "GCC",
+            purchaseType: "one_time",
+            pricingOption: {
+              billingCycle: "one_time",
+              amount: "18",
+              currency: "USD",
+              entity: "user",
+              ratePeriod: "one_time",
+            },
+            purchaseConstraints: {
+              minUnits: 1,
+            },
+          }),
+        }),
+      );
+    });
+  });
+
+  it("creates starting stock together with a single selected billing cycle", async () => {
     vi.spyOn(api, "getProductPricing").mockResolvedValue([
       {
         plan: "Standard",
@@ -288,27 +372,18 @@ describe("setup page", () => {
     ).not.toBeInTheDocument();
 
     await waitFor(() => {
+      expect(
+        screen.getByDisplayValue("jira-standard-gcc-monthly"),
+      ).toBeInTheDocument();
       expect(getPricingAmountInput("monthly")).toHaveValue("18");
     });
 
     expect(
       screen.queryByRole("textbox", { name: /rate period/i }),
     ).not.toBeInTheDocument();
-
-    await toggleBillingCycle("yearly");
-
-    expect(screen.getByRole("button", { name: /^monthly$/i })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByRole("button", { name: /^yearly$/i })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(getPricingAmountInput("yearly")).toHaveValue("216");
     expect(
-      screen.getByRole("combobox", { name: /^charged per$/i }),
-    ).toHaveTextContent("user");
+      screen.queryByRole("combobox", { name: /charged per/i }),
+    ).not.toBeInTheDocument();
 
     await act(async () => {
       fireEvent.change(getPricingAmountInput("monthly"), {
@@ -316,9 +391,6 @@ describe("setup page", () => {
       });
       fireEvent.change(getDiscountedPriceInput("monthly"), {
         target: { value: "16.801" },
-      });
-      fireEvent.change(getDiscountedPriceInput("yearly"), {
-        target: { value: "188.997" },
       });
       fireEvent.change(screen.getByPlaceholderText(/^e\.g\. 1$/i), {
         target: { value: "3" },
@@ -329,9 +401,10 @@ describe("setup page", () => {
     });
 
     expect(getDiscountedPriceInput("monthly")).toHaveValue("16.8");
-    expect(getDiscountedPriceInput("yearly")).toHaveValue("189");
     expect(getDiscountPercentageInput("monthly")).toHaveValue("20");
-    expect(getDiscountPercentageInput("yearly")).toHaveValue("25");
+    expect(
+      screen.queryByRole("textbox", { name: /^yearly price amount$/i }),
+    ).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(getStockQuantityInput("GCC")).toBeInTheDocument();
@@ -363,28 +436,18 @@ describe("setup page", () => {
         expect.objectContaining({
           plan: { name: "Standard", planType: "standard" },
           sku: expect.objectContaining({
-            code: "jira-standard-gcc",
+            code: "jira-standard-gcc-monthly",
             region: "GCC",
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "21",
-                currency: "USD",
-                entity: "user",
-                ratePeriod: "month",
-                discountPercentage: "20",
-                discountedAmount: "16.8",
-              },
-              {
-                billingCycle: "yearly",
-                amount: "252",
-                currency: "USD",
-                entity: "user",
-                ratePeriod: "year",
-                discountPercentage: "25",
-                discountedAmount: "189",
-              },
-            ],
+            purchaseType: "subscription",
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "21",
+              currency: "USD",
+              entity: "user",
+              ratePeriod: "monthly",
+              discountPercentage: "20",
+              discountedAmount: "16.8",
+            },
             purchaseConstraints: {
               minUnits: 3,
               maxUnits: 20,
@@ -415,10 +478,11 @@ describe("setup page", () => {
     const createSku = vi.spyOn(api, "createSku").mockResolvedValue({
       _id: "sku-created-2",
       planId: "plan-created-1",
-      code: "jira-standard-india",
+      code: "jira-standard-india-monthly",
       region: "INDIA",
       seatType: "seat",
-      pricingOptions: [pricingOption("monthly", "1400", "INR")],
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption("monthly", "1400", "INR"),
       createdAt: "2026-03-12T00:00:00.000Z",
     });
     const createInventoryPool = vi
@@ -459,34 +523,67 @@ describe("setup page", () => {
     await toggleRegion("INDIA");
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("jira-standard-gcc")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("jira-standard-gcc-monthly")).toBeInTheDocument();
     });
 
+    const indiaTab = screen.getByRole("tab", { name: /^india$/i });
+
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole("tab", { name: /india/i }), {
+      fireEvent.mouseDown(indiaTab, {
         button: 0,
       });
+      fireEvent.click(indiaTab);
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: /india/i })).toHaveAttribute(
+      expect(indiaTab).toHaveAttribute(
         "aria-selected",
         "true",
       );
     });
 
-    await act(async () => {
-      fireEvent.change(screen.getByPlaceholderText(/e\.g\. 12/i), {
-        target: { value: "1400" },
-      });
+    const indiaPanel = screen.getByRole("tabpanel");
+
+    await waitFor(() => {
+      expect(
+        within(indiaPanel).getByDisplayValue("jira-standard-india-monthly"),
+      ).toBeInTheDocument();
     });
 
-    await selectComboboxOption(0, "INR");
+    await act(async () => {
+      fireEvent.change(
+        within(indiaPanel).getByRole("textbox", {
+          name: /^monthly price amount$/i,
+        }),
+        {
+          target: { value: "1400" },
+        },
+      );
+    });
 
     await act(async () => {
-      fireEvent.change(screen.getByPlaceholderText(/e\.g\. 500/i), {
-        target: { value: "25" },
-      });
+      fireEvent.click(
+        within(indiaPanel).getByRole("combobox", { name: /^currency$/i }),
+      );
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("option", { name: /^INR$/i }));
+    });
+
+    await waitFor(() => {
+      expect(
+        within(indiaPanel).getByRole("combobox", { name: /^currency$/i }),
+      ).toHaveTextContent("INR");
+    });
+
+    await act(async () => {
+      fireEvent.change(
+        within(indiaPanel).getByPlaceholderText(/e\.g\. 500/i),
+        {
+          target: { value: "25" },
+        },
+      );
     });
 
     await waitFor(() => {
@@ -508,10 +605,15 @@ describe("setup page", () => {
       within(dialog).getByRole("tab", { name: /india/i }),
     ).toBeInTheDocument();
 
+    const indiaReviewTab = within(dialog).getByRole("tab", {
+      name: /^india$/i,
+    });
+
     await act(async () => {
-      fireEvent.mouseDown(within(dialog).getByRole("tab", { name: /india/i }), {
+      fireEvent.mouseDown(indiaReviewTab, {
         button: 0,
       });
+      fireEvent.click(indiaReviewTab);
     });
 
     expect(
@@ -528,34 +630,32 @@ describe("setup page", () => {
       expect(addCatalogEntry).toHaveBeenCalledWith(
         expect.objectContaining({
           sku: expect.objectContaining({
-            code: "jira-standard-gcc",
+            code: "jira-standard-gcc-monthly",
             region: "GCC",
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "18",
-                currency: "USD",
-                entity: "user",
-                ratePeriod: "month",
-              },
-            ],
+            purchaseType: "subscription",
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "18",
+              currency: "USD",
+              entity: "user",
+              ratePeriod: "monthly",
+            },
           }),
         }),
       );
       expect(createSku).toHaveBeenCalledWith({
         planId: "plan-created-1",
-        code: "jira-standard-india",
+        code: "jira-standard-india-monthly",
         region: "INDIA",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "1400",
-            currency: "INR",
-            entity: "user",
-            ratePeriod: "month",
-          },
-        ],
+        purchaseType: "subscription",
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "1400",
+          currency: "INR",
+          entity: "user",
+          ratePeriod: "monthly",
+        },
         purchaseConstraints: {
           minUnits: 1,
           maxUnits: 25,
@@ -586,10 +686,11 @@ describe("setup page", () => {
     const createSku = vi.spyOn(api, "createSku").mockResolvedValue({
       _id: "sku-existing-1",
       planId: "plan-existing-1",
-      code: "jira-enterprise-india",
+      code: "jira-enterprise-india-monthly",
       region: "INDIA",
       seatType: "seat",
-      pricingOptions: [pricingOption("monthly", "45")],
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption("monthly", "45"),
       createdAt: "2026-03-12T00:00:00.000Z",
     });
     const createInventoryPool = vi
@@ -676,18 +777,17 @@ describe("setup page", () => {
       });
       expect(createSku).toHaveBeenCalledWith({
         planId: "plan-existing-1",
-        code: "jira-enterprise-india",
+        code: "jira-enterprise-india-monthly",
         region: "INDIA",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "45",
-            currency: "USD",
-            entity: "user",
-            ratePeriod: undefined,
-          },
-        ],
+        purchaseType: "subscription",
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "45",
+          currency: "USD",
+          entity: "user",
+          ratePeriod: "monthly",
+        },
         purchaseConstraints: {
           minUnits: 1,
           maxUnits: 12,
@@ -697,6 +797,141 @@ describe("setup page", () => {
       expect(createInventoryPool).toHaveBeenCalledWith({
         skuId: "sku-existing-1",
         totalQuantity: 8,
+      });
+    });
+  });
+
+  it("suggests previous plan names and reuses the matching existing plan", async () => {
+    vi.spyOn(api, "getProductPricing").mockResolvedValue([]);
+    const createPlan = vi.spyOn(api, "createPlan").mockResolvedValue({
+      _id: "plan-existing-unused",
+      productId: "product-existing-1",
+      name: "Unused",
+      planType: "standard",
+      createdAt: "2026-03-12T00:00:00.000Z",
+    });
+    const createSku = vi.spyOn(api, "createSku").mockResolvedValue({
+      _id: "sku-created-legacy-1",
+      planId: "plan-existing-legacy-1",
+      code: "jira-legacy-gcc-monthly",
+      region: "GCC",
+      seatType: "seat",
+      purchaseType: "subscription" as const,
+      pricingOption: pricingOption("monthly", "25"),
+      createdAt: "2026-03-12T00:00:00.000Z",
+    });
+    const runAction: ActionRunner = async (work) => {
+      await work();
+      return true;
+    };
+
+    const { container } = render(
+      <SetupPage
+        snapshot={{
+          ...emptySnapshot,
+          products: [
+            {
+              _id: "product-existing-1",
+              externalId: "jira-product-1",
+              name: "Jira",
+              vendor: "Atlassian",
+              description: "Project tracking",
+              logoUrl: "",
+              createdAt: "2026-03-12T00:00:00.000Z",
+            },
+          ],
+          plans: [
+            {
+              _id: "plan-existing-standard-1",
+              productId: "product-existing-1",
+              name: "Standard",
+              planType: "standard",
+              createdAt: "2026-03-11T00:00:00.000Z",
+            },
+            {
+              _id: "plan-existing-legacy-1",
+              productId: "product-existing-1",
+              name: "Legacy",
+              planType: "standard",
+              createdAt: "2026-03-12T00:00:00.000Z",
+            },
+            {
+              _id: "plan-other-product-1",
+              productId: "product-other-1",
+              name: "Do Not Show",
+              planType: "standard",
+              createdAt: "2026-03-12T00:00:00.000Z",
+            },
+          ],
+        }}
+        loading={false}
+        runAction={runAction}
+      />,
+    );
+
+    await searchAndSelectProduct();
+
+    const planInput = await screen.findByPlaceholderText(/e\.g\. standard/i);
+
+    expect(planInput).toHaveAttribute("list", "setup-plan-suggestions");
+    expect(
+      container.querySelector(
+        'datalist#setup-plan-suggestions option[value="Legacy"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        'datalist#setup-plan-suggestions option[value="Do Not Show"]',
+      ),
+    ).toBeNull();
+
+    await act(async () => {
+      fireEvent.change(planInput, {
+        target: { value: "Legacy" },
+      });
+    });
+
+    await toggleRegion("GCC");
+
+    await waitFor(() => {
+      expect(
+        screen.getByDisplayValue("jira-legacy-gcc-monthly"),
+      ).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.change(getPricingAmountInput("monthly"), {
+        target: { value: "25" },
+      });
+    });
+
+    const dialog = await openReviewDialog();
+
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: /create offers/i }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(createPlan).not.toHaveBeenCalled();
+      expect(createSku).toHaveBeenCalledWith({
+        planId: "plan-existing-legacy-1",
+        code: "jira-legacy-gcc-monthly",
+        region: "GCC",
+        seatType: "seat",
+        purchaseType: "subscription",
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "25",
+          currency: "USD",
+          entity: "user",
+          ratePeriod: "monthly",
+        },
+        purchaseConstraints: {
+          minUnits: 1,
+        },
+        activationTimeline: "7",
       });
     });
   });
@@ -735,7 +970,8 @@ describe("setup page", () => {
               code: "jira-standard-gcc",
               region: "GCC",
               seatType: "seat",
-              pricingOptions: [pricingOption("monthly", "18")],
+              purchaseType: "subscription" as const,
+              pricingOption: pricingOption("monthly", "18"),
               purchaseConstraints: {
                 minUnits: 1,
                 maxUnits: 15,

@@ -1,5 +1,19 @@
 export type Region = "GCC" | "INDIA";
-export type BillingCycle = "monthly" | "yearly" | "one_time";
+export type BillingCycle =
+  | "monthly"
+  | "quarterly"
+  | "half_yearly"
+  | "yearly"
+  | "one_time";
+export type PurchasedBillingCycle =
+  | BillingCycle
+  | "custom"
+  | "unknown";
+export type SkuPurchaseType = "subscription" | "one_time";
+export type PurchaseType = "subscription" | "one_time" | "unknown";
+export type SaleType = "new_sale" | "renewal_sale" | "cancel_sale";
+export type SaleFulfillmentMode = "license_key" | "email_based";
+export type ActivationStatus = "pending" | "processing" | "completed" | "failed";
 
 export type Product = {
   _id: string;
@@ -38,8 +52,6 @@ export type PricingDetails = {
   discountedAmount: string;
 };
 
-export type PricingDetailsByCycle = Record<BillingCycle, PricingDetails>;
-
 export type PurchaseConstraints = {
   minUnits?: number;
   maxUnits?: number;
@@ -51,7 +63,8 @@ export type Sku = {
   code: string;
   region: Region;
   seatType: "seat" | "license_key";
-  pricingOptions: PricePerUnit[];
+  purchaseType: SkuPurchaseType;
+  pricingOption: PricePerUnit;
   purchaseConstraints?: PurchaseConstraints;
   activationTimeline?: string;
   isBillingDisabled?: boolean;
@@ -90,6 +103,10 @@ export type Sale = {
   _id: string;
   skuId: string;
   skuCode: string;
+  saleType: SaleType;
+  relatedSaleReference?: string;
+  billingCyclePurchased?: PurchasedBillingCycle;
+  purchaseType?: PurchaseType;
   quantity: number;
   partner: SalePartner;
   customer: SaleCustomer;
@@ -97,11 +114,41 @@ export type Sale = {
   createdAt: string;
 };
 
+export type LicenseDocumentMetadata = {
+  fileName: string;
+  uploadedAt?: string;
+};
+
+export type SaleActivation = {
+  _id: string;
+  saleId: string;
+  skuId: string;
+  customerEmail: string;
+  purchaseType: PurchaseType;
+  billingCyclePurchased: PurchasedBillingCycle;
+  fulfillmentMode: SaleFulfillmentMode;
+  accessStartDate?: string;
+  accessEndDate?: string;
+  nextRenewalDate?: string;
+  licenseKeyEncrypted?: string;
+  licenseKeyMasked?: string;
+  licenseDocument?: LicenseDocumentMetadata;
+  activationStatus: ActivationStatus;
+  activatedAt: string;
+  activatedBy: string;
+  notificationQueuedSuccessfully?: boolean;
+  partnerNotificationQueuedSuccessfully?: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SaleListEntry = {
   sale: Sale;
   sku: Sku;
   plan: Plan;
   product: Product;
+  activation?: SaleActivation;
 };
 
 export type AuditLog = {

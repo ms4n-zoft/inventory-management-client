@@ -3,9 +3,9 @@ import type {
   Plan,
   PricePerUnit,
   Product,
+  SkuPurchaseType,
   Sku,
 } from "@/types";
-import { orderBillingCycles } from "@/lib/billing-option";
 import {
   areEquivalentDecimalValues,
   calculateDiscountPercentage,
@@ -53,15 +53,45 @@ export function formatSkuLabel(sku: Pick<Sku, "code" | "region">) {
 export function formatBillingCycleLabel(
   billingCycle: PricePerUnit["billingCycle"],
 ) {
+  if (billingCycle === "half_yearly") {
+    return "half yearly";
+  }
+
   return billingCycle === "one_time" ? "one time" : billingCycle;
 }
 
-export function formatBillingCycles(pricingOptions: PricePerUnit[] = []) {
-  if (pricingOptions.length === 0) return "No pricing configured";
+export function formatSkuPurchaseTypeLabel(
+  purchaseType: SkuPurchaseType,
+) {
+  return purchaseType === "one_time" ? "Perpetual license" : "Subscription";
+}
 
-  return orderBillingCycles(pricingOptions.map((option) => option.billingCycle))
-    .map((billingCycle) => formatBillingCycleLabel(billingCycle))
-    .join(" / ");
+export function formatBillingCycle(pricingOption?: PricePerUnit) {
+  if (!pricingOption) return "No pricing configured";
+
+  return formatBillingCycleLabel(pricingOption.billingCycle);
+}
+
+function formatRatePeriodLabel(ratePeriod?: string) {
+  const normalizedRatePeriod = ratePeriod?.trim();
+
+  if (!normalizedRatePeriod) {
+    return undefined;
+  }
+
+  if (
+    normalizedRatePeriod === "monthly" ||
+    normalizedRatePeriod === "quarterly" ||
+    normalizedRatePeriod === "half_yearly" ||
+    normalizedRatePeriod === "yearly" ||
+    normalizedRatePeriod === "one_time"
+  ) {
+    return formatBillingCycleLabel(
+      normalizedRatePeriod as PricePerUnit["billingCycle"],
+    );
+  }
+
+  return normalizedRatePeriod;
 }
 
 function isFreeAmount(amount?: string): boolean {
@@ -108,8 +138,8 @@ export function formatPriceLine(input: {
   const currency = formatCurrencyPrefix(input.currency);
   const cadence = [
     input.entity,
-    input.ratePeriod ??
-      input.period ??
+    formatRatePeriodLabel(input.ratePeriod) ??
+      formatRatePeriodLabel(input.period) ??
       (input.billingCycle
         ? formatBillingCycleLabel(input.billingCycle)
         : undefined),
@@ -170,5 +200,14 @@ export function formatActivationTimelineValue(value?: string) {
 
   if (!normalizedValue) return undefined;
 
-  return normalizedValue;
+  if (/\bday(s)?\b/i.test(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  const numericValue = Number(normalizedValue);
+  const suffix = Number.isFinite(numericValue) && numericValue === 1
+    ? "day"
+    : "days";
+
+  return `${normalizedValue} ${suffix}`;
 }

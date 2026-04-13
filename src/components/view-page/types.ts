@@ -21,7 +21,7 @@ export type InventoryRowEntry = {
 export type BillingDialogState = {
   entry: ViewSetupEntry | null;
   region: string;
-  pricingOptions: PricePerUnit[];
+  pricingOption?: PricePerUnit;
   minimumUnits: string;
   maximumUnits: string;
   activationTimeline: string;

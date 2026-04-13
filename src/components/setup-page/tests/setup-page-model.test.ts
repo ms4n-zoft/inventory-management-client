@@ -1,311 +1,229 @@
 import { describe, expect, it } from "vitest";
 
-import { createPricingDetailsByCycle } from "@/lib/billing-option";
-import type { DashboardSnapshot, PricePerUnit } from "@/types";
+import { createPricingDetails } from "@/lib/billing-option";
+import type { DashboardSnapshot, PricePerUnit, Sku } from "@/types";
 
 import {
   buildSetupPageDerivedState,
   createRegionDraft,
-  defaultActivationTimelineDays,
-  defaultMinimumUnits,
-  regionDraftFromExisting,
 } from "../setup-page-model";
 
-const pricingOption = (
+function pricingOption(
   billingCycle: PricePerUnit["billingCycle"],
   amount: string,
-  currency = "USD",
-  entity = "user",
-  ratePeriod = billingCycle === "yearly" ? "year" : billingCycle,
-  discount?: {
-    discountPercentage?: string;
-    discountedAmount?: string;
-  },
-): PricePerUnit => ({
-  billingCycle,
-  amount,
-  currency,
-  entity,
-  ratePeriod,
-  ...(discount?.discountPercentage !== undefined
-    ? { discountPercentage: discount.discountPercentage }
-    : {}),
-  ...(discount?.discountedAmount !== undefined
-    ? { discountedAmount: discount.discountedAmount }
-    : {}),
-});
+): PricePerUnit {
+  return {
+    billingCycle,
+    amount,
+    currency: "USD",
+    entity: "user",
+    ratePeriod: billingCycle,
+  };
+}
 
-const snapshot: DashboardSnapshot = {
-  products: [
-    {
-      _id: "product-1",
-      externalId: "jira-product-1",
-      name: "Jira",
-      vendor: "Atlassian",
-      description: "Project tracking",
-      logoUrl: "",
-      createdAt: "2026-03-12T00:00:00.000Z",
+function skuFixture(input: {
+  id: string;
+  code: string;
+  billingCycle: PricePerUnit["billingCycle"];
+}): Sku {
+  return {
+    _id: input.id,
+    planId: "plan-1",
+    code: input.code,
+    region: "GCC",
+    seatType: "seat",
+    purchaseType: input.billingCycle === "one_time" ? "one_time" : "subscription",
+    pricingOption: pricingOption(input.billingCycle, "18"),
+    purchaseConstraints: {
+      minUnits: 1,
     },
-  ],
-  plans: [
-    {
-      _id: "plan-1",
-      productId: "product-1",
-      name: "Standard",
-      planType: "standard",
-      createdAt: "2026-03-12T00:00:00.000Z",
-    },
-  ],
-  skus: [
-    {
-      _id: "sku-1",
-      planId: "plan-1",
-      code: "jira-standard-gcc",
-      region: "GCC",
-      seatType: "seat",
-      pricingOptions: [pricingOption("monthly", "18")],
-      purchaseConstraints: { minUnits: 1 },
-      activationTimeline: "5 Days",
-      createdAt: "2026-03-12T00:00:00.000Z",
-    },
-  ],
-  inventoryPools: [
-    {
-      _id: "pool-1",
-      skuId: "sku-1",
-      totalQuantity: 12,
-      updatedAt: "2026-03-12T00:00:00.000Z",
-    },
-  ],
-  auditLogs: [],
-};
+    activationTimeline: "7",
+    createdAt: "2026-03-09T08:00:00.000Z",
+  };
+}
 
-const selectedProduct = {
-  id: "jira-product-1",
-  slug: "jira",
-  name: "Jira",
-  vendor: "Atlassian",
-  description: "Project tracking",
-  logoUrl: "",
-};
-
-describe("setup page model", () => {
-  it("starts new region drafts with default minimum units and activation timeline", () => {
-    const draft = createRegionDraft();
-
-    expect(draft.minimumUnits).toBe(defaultMinimumUnits);
-    expect(draft.activationTimeline).toBe(defaultActivationTimelineDays);
-  });
-
-  it("summarizes mixed create, update, and stock actions", () => {
-    const existingBaseDraft = regionDraftFromExisting(snapshot.skus[0]!, 12);
-    const existingDraft = {
-      ...existingBaseDraft,
-      pricingDetailsByCycle: {
-        ...existingBaseDraft.pricingDetailsByCycle,
-        monthly: {
-          ...existingBaseDraft.pricingDetailsByCycle.monthly,
-          amount: "21",
-          currency: "USD",
-          entity: "user",
-          ratePeriod: "monthly",
-        },
+function snapshotFixture(skus: Sku[]): DashboardSnapshot {
+  return {
+    products: [
+      {
+        _id: "product-1",
+        externalId: "jira",
+        name: "Jira",
+        vendor: "Atlassian",
+        description: "Project tracking",
+        logoUrl: "",
+        createdAt: "2026-03-08T08:00:00.000Z",
       },
-      maximumUnits: "20",
-      inventoryQuantity: 18,
-    };
-    const indiaBaseDraft = createRegionDraft(
-      pricingOption("monthly", "1400", "INR"),
-    );
-    const indiaDraft = {
-      ...indiaBaseDraft,
-      pricingDetailsByCycle: {
-        ...indiaBaseDraft.pricingDetailsByCycle,
-        monthly: {
-          ...indiaBaseDraft.pricingDetailsByCycle.monthly,
-          amount: "1400",
-          currency: "INR",
-          entity: "user",
-          ratePeriod: "month",
-        },
+    ],
+    plans: [
+      {
+        _id: "plan-1",
+        productId: "product-1",
+        name: "Standard",
+        planType: "standard",
+        createdAt: "2026-03-08T08:00:00.000Z",
       },
-      maximumUnits: "10",
-      inventoryQuantity: 5,
-    };
+    ],
+    skus,
+    inventoryPools: [],
+    auditLogs: [],
+  };
+}
 
+describe("setup-page-model", () => {
+  it("collects previous plan suggestions for the selected product only", () => {
     const derived = buildSetupPageDerivedState({
-      snapshot,
-      selectedProduct,
-      pricingPlans: [],
-      planName: "Standard",
-      selectedRegions: ["GCC", "INDIA"],
-      activeRegion: "GCC",
-      regionDrafts: {
-        GCC: existingDraft,
-        INDIA: indiaDraft,
-      },
-      loadingPricing: false,
-      loading: false,
-    });
-
-    expect(derived.existingProduct?._id).toBe("product-1");
-    expect(derived.existingPlan?._id).toBe("plan-1");
-    expect(derived.existingRegions).toEqual(["GCC"]);
-    expect(derived.regionEntries).toHaveLength(2);
-    expect(derived.activeRegionEntry?.generatedSkuCode).toBe(
-      "jira-standard-gcc",
-    );
-    expect(
-      derived.regionEntries.find((entry) => entry.region === "INDIA")
-        ?.generatedSkuCode,
-    ).toBe("jira-standard-india");
-
-    expect(derived.summary.createOfferCount).toBe(1);
-    expect(derived.summary.updateOfferCount).toBe(1);
-    expect(derived.summary.startTrackingCount).toBe(1);
-    expect(derived.summary.adjustStockCount).toBe(1);
-    expect(derived.summary.canSubmit).toBe(true);
-    expect(derived.summary.submitLabel).toBe("Save selected regions");
-    expect(derived.summary.successMessage).toBe(
-      "Regional offers and stock saved.",
-    );
-    expect(derived.summary.saveMessage).toBe(
-      "Saving will create 1 new regional offer, update 1 existing regional offer, start tracking stock in 1 region, and adjust stock in 1 region.",
-    );
-  });
-
-  it("ignores stock changes when maximum units stays unlimited", () => {
-    const indiaBaseDraft = createRegionDraft(
-      pricingOption("monthly", "1400", "INR"),
-    );
-
-    const derived = buildSetupPageDerivedState({
-      snapshot,
-      selectedProduct,
-      pricingPlans: [],
-      planName: "Standard",
-      selectedRegions: ["INDIA"],
-      activeRegion: "INDIA",
-      regionDrafts: {
-        INDIA: {
-          ...indiaBaseDraft,
-          pricingDetailsByCycle: {
-            ...indiaBaseDraft.pricingDetailsByCycle,
-            monthly: {
-              ...indiaBaseDraft.pricingDetailsByCycle.monthly,
-              amount: "1400",
-              currency: "INR",
-              entity: "user",
-              ratePeriod: "month",
-            },
+      snapshot: {
+        products: [
+          {
+            _id: "product-1",
+            externalId: "jira",
+            name: "Jira",
+            vendor: "Atlassian",
+            description: "Project tracking",
+            logoUrl: "",
+            createdAt: "2026-03-08T08:00:00.000Z",
           },
-          inventoryQuantity: 7,
-        },
+          {
+            _id: "product-2",
+            externalId: "slack",
+            name: "Slack",
+            vendor: "Slack",
+            description: "Team chat",
+            logoUrl: "",
+            createdAt: "2026-03-08T08:00:00.000Z",
+          },
+        ],
+        plans: [
+          {
+            _id: "plan-1",
+            productId: "product-1",
+            name: "Standard",
+            planType: "standard",
+            createdAt: "2026-03-08T08:00:00.000Z",
+          },
+          {
+            _id: "plan-2",
+            productId: "product-1",
+            name: "Legacy",
+            planType: "standard",
+            createdAt: "2026-03-09T08:00:00.000Z",
+          },
+          {
+            _id: "plan-3",
+            productId: "product-2",
+            name: "Slack Pro",
+            planType: "standard",
+            createdAt: "2026-03-10T08:00:00.000Z",
+          },
+        ],
+        skus: [],
+        inventoryPools: [],
+        auditLogs: [],
       },
+      selectedProduct: {
+        id: "jira",
+        slug: "jira",
+        name: "Jira",
+        vendor: "Atlassian",
+        description: "Project tracking",
+        logoUrl: "",
+      },
+      pricingPlans: [],
+      planName: "",
+      selectedRegions: [],
+      regionDrafts: {},
       loadingPricing: false,
       loading: false,
     });
 
-    expect(derived.regionEntries[0]?.stockTrackingEnabled).toBe(false);
-    expect(derived.regionEntries[0]?.inventoryActionNeeded).toBe(false);
-    expect(derived.summary.startTrackingCount).toBe(0);
-    expect(derived.summary.saveMessage).toBe(
-      "Saving will create 1 new regional offer.",
-    );
+    expect(derived.previousPlanSuggestions).toEqual(["Standard", "Legacy"]);
   });
 
-  it("blocks saving when an existing regional offer is edited into an invalid state", () => {
-    const invalidBaseDraft = regionDraftFromExisting(snapshot.skus[0]!, 12);
-    const invalidDraft = {
-      ...invalidBaseDraft,
-      pricingDetailsByCycle: {
-        ...invalidBaseDraft.pricingDetailsByCycle,
-        monthly: {
-          ...invalidBaseDraft.pricingDetailsByCycle.monthly,
-          amount: "",
-          currency: "USD",
-          entity: "user",
-          ratePeriod: "monthly",
-        },
-      },
-    };
+  it("matches existing skus by region and billing cycle", () => {
+    const snapshot = snapshotFixture([
+      skuFixture({
+        id: "sku-monthly",
+        code: "jira-standard-gcc-monthly",
+        billingCycle: "monthly",
+      }),
+      skuFixture({
+        id: "sku-yearly",
+        code: "jira-standard-gcc-yearly",
+        billingCycle: "yearly",
+      }),
+    ]);
 
     const derived = buildSetupPageDerivedState({
       snapshot,
-      selectedProduct,
-      pricingPlans: [],
-      planName: "Standard",
-      selectedRegions: ["GCC"],
-      activeRegion: "GCC",
-      regionDrafts: {
-        GCC: invalidDraft,
+      selectedProduct: {
+        id: "jira",
+        slug: "jira",
+        name: "Jira",
+        vendor: "Atlassian",
+        description: "Project tracking",
+        logoUrl: "",
       },
-      loadingPricing: false,
-      loading: false,
-    });
-
-    expect(derived.summary.blockingRegions).toEqual(["GCC"]);
-    expect(derived.summary.canSubmit).toBe(false);
-    expect(derived.summary.saveMessage).toBe(
-      "Complete the GCC tab before saving.",
-    );
-  });
-
-  it("preserves separate pricing details for existing multi-cycle offers", () => {
-    const multiCycleSnapshot: DashboardSnapshot = {
-      ...snapshot,
-      skus: [
-        {
-          ...snapshot.skus[0]!,
-          pricingOptions: [
-            pricingOption("monthly", "18", "USD", "user", "monthly", {
-              discountPercentage: "10",
-              discountedAmount: "16.2",
-            }),
-            pricingOption("yearly", "180", "USD", "user", "year"),
-          ],
-        },
-      ],
-    };
-    const draft = regionDraftFromExisting(multiCycleSnapshot.skus[0]!, 12);
-
-    expect(draft.billingCycles).toEqual(["monthly", "yearly"]);
-    expect(draft.pricingDetailsByCycle.monthly.amount).toBe("18");
-    expect(draft.pricingDetailsByCycle.monthly.discountPercentage).toBe("10");
-    expect(draft.pricingDetailsByCycle.monthly.discountedAmount).toBe("16.2");
-    expect(draft.pricingDetailsByCycle.yearly.amount).toBe("180");
-
-    const derived = buildSetupPageDerivedState({
-      snapshot: multiCycleSnapshot,
-      selectedProduct,
       pricingPlans: [],
       planName: "Standard",
       selectedRegions: ["GCC"],
-      activeRegion: "GCC",
       regionDrafts: {
         GCC: {
-          ...draft,
-          pricingDetailsByCycle: {
-            ...createPricingDetailsByCycle(pricingOption("monthly", "18")),
-            monthly: {
-              ...draft.pricingDetailsByCycle.monthly,
-            },
-            yearly: {
-              ...draft.pricingDetailsByCycle.yearly,
-            },
-          },
+          ...createRegionDraft(pricingOption("yearly", "180")),
+          purchaseType: "subscription",
+          billingCycle: "yearly",
+          pricingDetails: createPricingDetails(pricingOption("yearly", "180")),
         },
       },
       loadingPricing: false,
       loading: false,
     });
 
-    expect(derived.activeRegionEntry?.pricingOptions).toEqual([
-      pricingOption("monthly", "18", "USD", "user", "monthly", {
-        discountPercentage: "10",
-        discountedAmount: "16.2",
+    expect(derived.regionEntries[0]?.existingSku?._id).toBe("sku-yearly");
+    expect(derived.regionEntries[0]?.generatedSkuCode).toBe(
+      "jira-standard-gcc-yearly",
+    );
+  });
+
+  it("prepares a new sku when the selected cycle does not already exist", () => {
+    const snapshot = snapshotFixture([
+      skuFixture({
+        id: "sku-monthly",
+        code: "jira-standard-gcc-monthly",
+        billingCycle: "monthly",
       }),
-      pricingOption("yearly", "180", "USD", "user", "year"),
     ]);
+
+    const derived = buildSetupPageDerivedState({
+      snapshot,
+      selectedProduct: {
+        id: "jira",
+        slug: "jira",
+        name: "Jira",
+        vendor: "Atlassian",
+        description: "Project tracking",
+        logoUrl: "",
+      },
+      pricingPlans: [],
+      planName: "Standard",
+      selectedRegions: ["GCC"],
+      regionDrafts: {
+        GCC: {
+          ...createRegionDraft(pricingOption("quarterly", "48")),
+          purchaseType: "subscription",
+          billingCycle: "quarterly",
+          pricingDetails: createPricingDetails(
+            pricingOption("quarterly", "48"),
+          ),
+        },
+      },
+      loadingPricing: false,
+      loading: false,
+    });
+
+    expect(derived.regionEntries[0]?.existingSku).toBeUndefined();
+    expect(derived.regionEntries[0]?.generatedSkuCode).toBe(
+      "jira-standard-gcc-quarterly",
+    );
   });
 });

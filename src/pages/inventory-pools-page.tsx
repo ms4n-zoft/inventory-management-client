@@ -32,7 +32,7 @@ export function InventoryPoolsPage() {
           { name: "plan.name", weight: 0.2 },
           { name: "sku.code", weight: 0.2 },
           { name: "sku.region", weight: 0.2 },
-          { name: "sku.pricingOptions.billingCycle", weight: 0.05 },
+          { name: "sku.pricingOption.billingCycle", weight: 0.05 },
         ],
       }),
     [inventoryRows],

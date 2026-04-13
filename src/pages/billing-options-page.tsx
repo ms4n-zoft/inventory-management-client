@@ -34,7 +34,7 @@ export function BillingOptionsPage() {
           { name: "product.vendor", weight: 0.2 },
           { name: "plan.name", weight: 0.2 },
           { name: "sku.code", weight: 0.15 },
-          { name: "sku.pricingOptions.billingCycle", weight: 0.05 },
+          { name: "sku.pricingOption.billingCycle", weight: 0.05 },
           { name: "sku.region", weight: 0.05 },
         ],
       }),

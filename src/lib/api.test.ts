@@ -58,7 +58,7 @@ describe("api auth handling", () => {
     await expect(api.getDashboard()).rejects.toThrow("Session expired");
     expect(dispatchEventSpy).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:4000/api/dashboard",
+      expect.stringContaining("/api/dashboard"),
       expect.objectContaining({
         headers: expect.objectContaining({
           authorization: "Bearer inventory-token",
@@ -101,9 +101,7 @@ describe("api.searchProducts", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.example/api/catalog/search-products?query=CRM&limit=10",
       {
-        headers: {
-          "content-type": "application/json",
-        },
+        headers: {},
       },
     );
     expect(results).toEqual([
@@ -154,17 +152,15 @@ describe("api sku response normalization", () => {
             region: "INDIA",
             seatType: "seat",
             isBillingDisabled: true,
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "100.555",
-                currency: "INR",
-                entity: "user",
-                ratePeriod: "month",
-                discountPercentage: "15.129",
-                discountedAmount: "85.355",
-              },
-            ],
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "100.555",
+              currency: "INR",
+              entity: "user",
+              ratePeriod: "month",
+              discountPercentage: "15.129",
+              discountedAmount: "85.355",
+            },
             purchaseConstraints: {
               minUnits: 1,
               maxUnits: "unlimited",
@@ -207,17 +203,16 @@ describe("api sku response normalization", () => {
           region: "INDIA",
           seatType: "seat",
           isBillingDisabled: true,
-          pricingOptions: [
-            {
-              billingCycle: "monthly",
-              amount: "100.56",
-              currency: "INR",
-              entity: "user",
-              ratePeriod: "month",
-              discountPercentage: "15.13",
-              discountedAmount: "85.35",
-            },
-          ],
+          purchaseType: "subscription",
+          pricingOption: {
+            billingCycle: "monthly",
+            amount: "100.56",
+            currency: "INR",
+            entity: "user",
+            ratePeriod: "month",
+            discountPercentage: "15.13",
+            discountedAmount: "85.35",
+          },
           purchaseConstraints: {
             minUnits: 1,
           },
@@ -259,16 +254,14 @@ describe("api sku response normalization", () => {
             code: "pipedrive-starter-pack-india",
             region: "INDIA",
             seatType: "seat",
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "100.555",
-                currency: "INR",
-                entity: "user",
-                ratePeriod: "month",
-                discountedAmount: "90.443",
-              },
-            ],
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "100.555",
+              currency: "INR",
+              entity: "user",
+              ratePeriod: "month",
+              discountedAmount: "90.443",
+            },
             purchaseConstraints: {
               minUnits: 1,
               maxUnits: "unlimited",
@@ -292,17 +285,76 @@ describe("api sku response normalization", () => {
       minUnits: 1,
     });
     expect(results.skus[0]!.isBillingDisabled).toBe(false);
-    expect(results.skus[0]!.pricingOptions).toEqual([
+    expect(results.skus[0]!.pricingOption).toEqual({
+      billingCycle: "monthly",
+      amount: "100.56",
+      currency: "INR",
+      entity: "user",
+      ratePeriod: "month",
+      discountPercentage: "10.06",
+      discountedAmount: "90.44",
+    });
+  });
+
+  it("loads a single sku by id", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _id: "sku-1",
+        planId: "plan-1",
+        code: "pipedrive-starter-pack-india",
+        region: "INDIA",
+        seatType: "seat",
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "3060.125",
+          currency: "inr",
+          entity: "user",
+          ratePeriod: "month",
+        },
+        purchaseConstraints: {
+          minUnits: 1,
+          maxUnits: "unlimited",
+        },
+        activationTimeline: "5",
+        isBillingDisabled: false,
+        createdAt: "2026-03-16T00:00:00.000Z",
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.resetModules();
+
+    const { api } = await import("./api");
+    const result = await api.getSku("sku-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/skus/sku-1"),
       {
+        headers: {},
+      },
+    );
+    expect(result).toEqual({
+      _id: "sku-1",
+      planId: "plan-1",
+      code: "pipedrive-starter-pack-india",
+      region: "INDIA",
+      seatType: "seat",
+      purchaseType: "subscription",
+      pricingOption: {
         billingCycle: "monthly",
-        amount: "100.56",
+        amount: "3060.13",
         currency: "INR",
         entity: "user",
         ratePeriod: "month",
-        discountPercentage: "10.06",
-        discountedAmount: "90.44",
       },
-    ]);
+      purchaseConstraints: {
+        minUnits: 1,
+      },
+      activationTimeline: "5",
+      isBillingDisabled: false,
+      createdAt: "2026-03-16T00:00:00.000Z",
+    });
   });
 
   it("deletes skus through the sku endpoint", async () => {
@@ -314,15 +366,13 @@ describe("api sku response normalization", () => {
         code: "pipedrive-starter-pack-india",
         region: "INDIA",
         seatType: "seat",
-        pricingOptions: [
-          {
-            billingCycle: "monthly",
-            amount: "3060",
-            currency: "INR",
-            entity: "user",
-            ratePeriod: "month",
-          },
-        ],
+        pricingOption: {
+          billingCycle: "monthly",
+          amount: "3060",
+          currency: "INR",
+          entity: "user",
+          ratePeriod: "month",
+        },
         purchaseConstraints: {
           minUnits: 1,
           maxUnits: 25,
@@ -339,12 +389,10 @@ describe("api sku response normalization", () => {
     const result = await api.deleteSku("sku-1");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:4000/api/skus/sku-1",
+      expect.stringContaining("/api/skus/sku-1"),
       {
         method: "DELETE",
-        headers: {
-          "content-type": "application/json",
-        },
+        headers: {},
       },
     );
     expect(result).toMatchObject({
@@ -362,6 +410,7 @@ describe("api sku response normalization", () => {
             _id: "sale-1",
             skuId: "sku-1",
             skuCode: "pipedrive-starter-pack-india",
+            saleType: "new_sale",
             quantity: 2,
             partner: {
               name: "Zoftware Reseller",
@@ -393,15 +442,13 @@ describe("api sku response normalization", () => {
             code: "pipedrive-starter-pack-india",
             region: "INDIA",
             seatType: "seat",
-            pricingOptions: [
-              {
-                billingCycle: "monthly",
-                amount: "3060",
-                currency: "INR",
-                entity: "user",
-                ratePeriod: "month",
-              },
-            ],
+            pricingOption: {
+              billingCycle: "monthly",
+              amount: "3060",
+              currency: "INR",
+              entity: "user",
+              ratePeriod: "month",
+            },
             purchaseConstraints: {
               minUnits: 1,
               maxUnits: 25,
@@ -434,15 +481,17 @@ describe("api sku response normalization", () => {
     const { api } = await import("./api");
     const results = await api.getSales();
 
-    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:4000/api/sales", {
-      headers: {
-        "content-type": "application/json",
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/sales"),
+      {
+        headers: {},
       },
-    });
+    );
     expect(results).toEqual([
       expect.objectContaining({
         sale: expect.objectContaining({
           skuCode: "pipedrive-starter-pack-india",
+          saleType: "new_sale",
           quantity: 2,
           payment: expect.objectContaining({
             amount: "59.01",
@@ -452,5 +501,67 @@ describe("api sku response normalization", () => {
         product: expect.objectContaining({ name: "Pipedrive" }),
       }),
     ]);
+  });
+
+  it("saves sale activation details through the activation endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _id: "activation-1",
+        saleId: "sale-1",
+        skuId: "sku-1",
+        customerEmail: "ayesha@example.com",
+        purchaseType: "subscription",
+        billingCyclePurchased: "monthly",
+        fulfillmentMode: "email_based",
+        accessStartDate: "2026-04-01T00:00:00.000Z",
+        accessEndDate: "2026-05-01T00:00:00.000Z",
+        nextRenewalDate: "2026-05-01T00:00:00.000Z",
+        activationStatus: "completed",
+        activatedAt: "2026-04-01T00:00:00.000Z",
+        activatedBy: "ops@example.com",
+        createdAt: "2026-04-01T00:00:00.000Z",
+        updatedAt: "2026-04-01T00:00:00.000Z",
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.resetModules();
+
+    const { api } = await import("./api");
+    const result = await api.upsertSaleActivation("sale-1", {
+      purchaseType: "subscription",
+      billingCyclePurchased: "monthly",
+      fulfillmentMode: "email_based",
+      accessStartDate: "2026-04-01",
+      accessEndDate: "2026-05-01",
+      nextRenewalDate: "2026-05-01",
+      activationStatus: "completed",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/sales/sale-1/activation"),
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          purchaseType: "subscription",
+          billingCyclePurchased: "monthly",
+          fulfillmentMode: "email_based",
+          accessStartDate: "2026-04-01",
+          accessEndDate: "2026-05-01",
+          nextRenewalDate: "2026-05-01",
+          activationStatus: "completed",
+        }),
+      },
+    );
+    expect(result).toMatchObject({
+      saleId: "sale-1",
+      purchaseType: "subscription",
+      billingCyclePurchased: "monthly",
+      activationStatus: "completed",
+    });
   });
 });

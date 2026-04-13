@@ -1,192 +1,153 @@
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BillingDetailsFields } from "@/components/billing-details-fields";
 import {
   applyPricingDetailsChange,
-  syncPricingDetailsByBillingCycles,
+  createPricingDetails,
+  normalizeBillingCycleForPurchaseType,
+  syncPricingDetailsForBillingCycle,
 } from "@/lib/billing-option";
-import type { BillingCycle, PricingDetailsByCycle } from "@/types";
+import type { BillingCycle, PricingDetails, SkuPurchaseType } from "@/types";
 
-function buildPricingDetailsByCycle(): PricingDetailsByCycle {
-  return {
-    monthly: {
-      amount: "18",
-      currency: "USD",
-      entity: "user",
-      ratePeriod: "month",
-      discountPercentage: "",
-      discountedAmount: "",
-    },
-    yearly: {
-      amount: "180",
-      currency: "USD",
-      entity: "user",
-      ratePeriod: "year",
-      discountPercentage: "",
-      discountedAmount: "",
-    },
-    one_time: {
-      amount: "300",
-      currency: "USD",
-      entity: "user",
-      ratePeriod: "one time",
-      discountPercentage: "",
-      discountedAmount: "",
-    },
-  };
-}
+import { BillingDetailsFields } from "../billing-details-fields";
 
 function ControlledBillingDetailsFields({
-  initialBillingCycles = ["monthly", "yearly"],
-  initialPricingDetailsByCycle = buildPricingDetailsByCycle(),
+  initialPurchaseType = "subscription",
+  initialBillingCycle = "monthly",
 }: {
-  initialBillingCycles?: BillingCycle[];
-  initialPricingDetailsByCycle?: PricingDetailsByCycle;
+  initialPurchaseType?: SkuPurchaseType;
+  initialBillingCycle?: BillingCycle;
 }) {
-  const [billingCycles, setBillingCycles] =
-    useState<BillingCycle[]>(initialBillingCycles);
-  const [pricingDetailsByCycle, setPricingDetailsByCycle] =
-    useState<PricingDetailsByCycle>(initialPricingDetailsByCycle);
+  const [purchaseType, setPurchaseType] =
+    useState<SkuPurchaseType>(initialPurchaseType);
+  const [billingCycle, setBillingCycle] =
+    useState<BillingCycle>(initialBillingCycle);
+  const [pricingDetails, setPricingDetails] = useState(
+    createPricingDetails({
+      billingCycle: initialBillingCycle,
+      amount: "18",
+      currency: "USD",
+    }),
+  );
+
+  const handlePurchaseTypeChange = (nextPurchaseType: SkuPurchaseType) => {
+    setPurchaseType(nextPurchaseType);
+    setBillingCycle((currentBillingCycle) => {
+      const nextBillingCycle = normalizeBillingCycleForPurchaseType(
+        nextPurchaseType,
+        currentBillingCycle,
+      );
+
+      setPricingDetails((currentPricingDetails) =>
+        syncPricingDetailsForBillingCycle({
+          pricingDetails: currentPricingDetails,
+          nextBillingCycle,
+        }),
+      );
+
+      return nextBillingCycle;
+    });
+  };
+
+  const handleBillingCycleChange = (nextBillingCycle: BillingCycle) => {
+    setBillingCycle(nextBillingCycle);
+    setPricingDetails((currentPricingDetails) =>
+      syncPricingDetailsForBillingCycle({
+        pricingDetails: currentPricingDetails,
+        nextBillingCycle,
+      }),
+    );
+  };
 
   return (
-    <BillingDetailsFields
-      instanceKey="jira-standard"
-      region="GCC"
-      onRegionChange={vi.fn()}
-      regionDescription="Choose a region"
-      catalogCode="jira-standard-gcc"
-      catalogCodeDescription="Generated from the product, plan, and region."
-      billingCycles={billingCycles}
-      onBillingCyclesChange={setBillingCycles}
-      pricingDetailsByCycle={pricingDetailsByCycle}
-      onPricingDetailsChange={(billingCycle, field, value) => {
-        setPricingDetailsByCycle((current) =>
-          applyPricingDetailsChange({
-            billingCycles,
-            pricingDetailsByCycle: current,
-            billingCycle,
-            field,
-            value,
-          }),
-        );
-      }}
-      minimumUnits="1"
-      onMinimumUnitsChange={vi.fn()}
-      maximumUnits="500"
-      onMaximumUnitsChange={vi.fn()}
-      activationTimeline="5 Days"
-      onActivationTimelineChange={vi.fn()}
-      amountDescription="Required for every billing cycle you keep on the offer."
-    />
-  );
-}
-
-describe("BillingDetailsFields", () => {
-  it("shows Unlimited as the active maximum-units option and keeps it input-sized", () => {
-    const onMaximumUnitsChange = vi.fn();
-
-    render(
+    <>
       <BillingDetailsFields
-        instanceKey="jira-standard"
+        instanceKey="test"
         region="GCC"
         onRegionChange={vi.fn()}
-        regionDescription="Choose a region"
-        catalogCode="jira-standard-gcc"
-        catalogCodeDescription="Generated from the product, plan, and region."
-        billingCycles={["monthly"]}
-        onBillingCyclesChange={vi.fn()}
-        pricingDetailsByCycle={buildPricingDetailsByCycle()}
-        onPricingDetailsChange={vi.fn()}
+        regionDescription="Region help"
+        catalogCode="jira-standard-gcc-monthly"
+        catalogCodeDescription="Generated automatically"
+        purchaseType={purchaseType}
+        onPurchaseTypeChange={handlePurchaseTypeChange}
+        billingCycle={billingCycle}
+        onBillingCycleChange={handleBillingCycleChange}
+        pricingDetails={pricingDetails}
+        onPricingDetailsChange={(field: keyof PricingDetails, value: string) => {
+          setPricingDetails((current) =>
+            applyPricingDetailsChange({
+              pricingDetails: current,
+              field,
+              value,
+            }),
+          );
+        }}
         minimumUnits="1"
         onMinimumUnitsChange={vi.fn()}
         maximumUnits=""
-        onMaximumUnitsChange={onMaximumUnitsChange}
-        activationTimeline="5 Days"
-        onActivationTimelineChange={vi.fn()}
-        amountDescription="Required for every billing cycle you keep on the offer."
-      />,
-    );
-
-    const unlimitedButton = screen.getByRole("button", {
-      name: /unlimited/i,
-    });
-
-    expect(unlimitedButton).toHaveAttribute("aria-pressed", "true");
-    expect(unlimitedButton).toHaveClass("min-h-11");
-
-    fireEvent.click(unlimitedButton);
-
-    expect(onMaximumUnitsChange).toHaveBeenCalledWith("");
-  });
-
-  it("clears the active state when operators enter a maximum unit cap", () => {
-    render(
-      <BillingDetailsFields
-        instanceKey="jira-standard"
-        region="GCC"
-        onRegionChange={vi.fn()}
-        regionDescription="Choose a region"
-        catalogCode="jira-standard-gcc"
-        catalogCodeDescription="Generated from the product, plan, and region."
-        billingCycles={["monthly"]}
-        onBillingCyclesChange={vi.fn()}
-        pricingDetailsByCycle={buildPricingDetailsByCycle()}
-        onPricingDetailsChange={vi.fn()}
-        minimumUnits="1"
-        onMinimumUnitsChange={vi.fn()}
-        maximumUnits="500"
         onMaximumUnitsChange={vi.fn()}
-        activationTimeline="5 Days"
+        activationTimeline="7"
         onActivationTimelineChange={vi.fn()}
-        amountDescription="Required for every billing cycle you keep on the offer."
-      />,
-    );
+        amountDescription="Price help"
+      />
+      <dl>
+        <div>
+          <dt>Purchase type</dt>
+          <dd data-testid="purchase-type-value">{purchaseType}</dd>
+        </div>
+        <div>
+          <dt>Billing cycle</dt>
+          <dd data-testid="billing-cycle-value">{billingCycle}</dd>
+        </div>
+        <div>
+          <dt>Charged per</dt>
+          <dd data-testid="charged-per-value">{pricingDetails.entity}</dd>
+        </div>
+        <div>
+          <dt>Rate period</dt>
+          <dd data-testid="rate-period-value">{pricingDetails.ratePeriod}</dd>
+        </div>
+      </dl>
+    </>
+  );
+}
 
-    expect(screen.getByRole("button", { name: /unlimited/i })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(screen.getByDisplayValue("500")).toBeInTheDocument();
+function selectOption(label: RegExp, optionLabel: RegExp) {
+  fireEvent.click(screen.getByRole("combobox", { name: label }));
+  fireEvent.click(screen.getByRole("option", { name: optionLabel }));
+}
+
+describe("BillingDetailsFields", () => {
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
   });
 
-  it("shows shared currency and charged-per fields while auto-filling yearly from monthly", () => {
-    const initialPricingDetailsByCycle = buildPricingDetailsByCycle();
-    initialPricingDetailsByCycle.yearly.amount = "";
+  it("renders the single purchase-type and billing-cycle flow", () => {
+    render(<ControlledBillingDetailsFields />);
 
-    render(
-      <ControlledBillingDetailsFields
-        initialPricingDetailsByCycle={initialPricingDetailsByCycle}
-      />,
-    );
-
+    expect(
+      screen.getByRole("combobox", { name: /purchase type/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: /billing cycle/i }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: /monthly price amount/i }),
     ).toHaveValue("18");
+    expect(screen.getByDisplayValue("jira-standard-gcc-monthly")).toBeVisible();
     expect(
-      screen.getByRole("textbox", { name: /yearly price amount/i }),
-    ).toHaveValue("");
-    expect(
-      screen.queryByRole("textbox", { name: /monthly charged per/i }),
+      screen.queryByRole("combobox", { name: /charged per/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("combobox", { name: /^charged per$/i }),
-    ).toHaveTextContent("user");
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /monthly price amount/i }),
-      {
-        target: { value: "12" },
-      },
-    );
-
-    expect(
-      screen.getByRole("textbox", { name: /yearly price amount/i }),
-    ).toHaveValue("144");
+      screen.queryByRole("textbox", { name: /rate period/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it("seeds yearly discount from monthly while both billing cycles are selected", () => {
+  it("keeps discount fields synchronized for the selected billing cycle", () => {
     render(<ControlledBillingDetailsFields />);
 
     fireEvent.change(
@@ -197,132 +158,44 @@ describe("BillingDetailsFields", () => {
     );
 
     expect(
-      screen.getByRole("textbox", { name: /yearly discount percentage/i }),
-    ).toHaveValue("10");
-    expect(
-      screen.getByRole("textbox", { name: /yearly discounted price/i }),
-    ).toHaveValue("162");
+      screen.getByRole("textbox", { name: /monthly discounted price/i }),
+    ).toHaveValue("16.2");
   });
 
-  it("keeps yearly discount editable after the initial monthly seed", () => {
+  it("locks perpetual licenses to one_time defaults", () => {
     render(<ControlledBillingDetailsFields />);
 
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /monthly discount percentage/i }),
-      {
-        target: { value: "10" },
-      },
-    );
+    selectOption(/purchase type/i, /perpetual license/i);
 
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /yearly discount percentage/i }),
-      {
-        target: { value: "15" },
-      },
+    expect(screen.getByTestId("purchase-type-value")).toHaveTextContent(
+      "one_time",
     );
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /monthly discount percentage/i }),
-      {
-        target: { value: "20" },
-      },
+    expect(screen.getByTestId("billing-cycle-value")).toHaveTextContent(
+      "one_time",
     );
-
+    expect(screen.getByTestId("charged-per-value")).toHaveTextContent("user");
+    expect(screen.getByTestId("rate-period-value")).toHaveTextContent(
+      "one_time",
+    );
     expect(
-      screen.getByRole("textbox", { name: /monthly discounted price/i }),
-    ).toHaveValue("14.4");
+      screen.getByRole("combobox", { name: /billing cycle/i }),
+    ).toBeDisabled();
     expect(
-      screen.getByRole("textbox", { name: /yearly discount percentage/i }),
-    ).toHaveValue("15");
-    expect(
-      screen.getByRole("textbox", { name: /yearly discounted price/i }),
-    ).toHaveValue("153");
+      screen.getByRole("textbox", { name: /one time price amount/i }),
+    ).toBeInTheDocument();
   });
 
-  it("seeds yearly discount when yearly is added after monthly already has one", () => {
-    const pricingDetailsByCycle = buildPricingDetailsByCycle();
-    pricingDetailsByCycle.yearly.amount = "";
-    pricingDetailsByCycle.monthly.discountPercentage = "10";
-    pricingDetailsByCycle.monthly.discountedAmount = "16.2";
+  it("updates the derived rate period when the billing cycle changes", () => {
+    render(<ControlledBillingDetailsFields />);
 
-    const nextPricingDetailsByCycle = syncPricingDetailsByBillingCycles({
-      billingCycles: ["monthly", "yearly"],
-      pricingDetailsByCycle,
-    });
+    selectOption(/billing cycle/i, /^yearly$/i);
 
-    expect(nextPricingDetailsByCycle.yearly.amount).toBe("216");
-    expect(nextPricingDetailsByCycle.yearly.discountPercentage).toBe("10");
-    expect(nextPricingDetailsByCycle.yearly.discountedAmount).toBe("194.4");
-  });
-
-  it("calculates the discounted price from the entered discount percentage", () => {
-    render(
-      <ControlledBillingDetailsFields initialBillingCycles={["monthly"]} />,
+    expect(screen.getByTestId("billing-cycle-value")).toHaveTextContent(
+      "yearly",
     );
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /monthly discount percentage/i }),
-      {
-        target: { value: "20.125" },
-      },
+    expect(screen.getByTestId("charged-per-value")).toHaveTextContent("user");
+    expect(screen.getByTestId("rate-period-value")).toHaveTextContent(
+      "yearly",
     );
-
-    expect(
-      screen.getByRole("textbox", { name: /monthly discounted price/i }),
-    ).toHaveValue("14.38");
-  });
-
-  it("lets operators clear an existing discount percentage before typing a new one", () => {
-    render(
-      <ControlledBillingDetailsFields initialBillingCycles={["monthly"]} />,
-    );
-
-    const discountPercentageInput = screen.getByRole("textbox", {
-      name: /monthly discount percentage/i,
-    });
-    const discountedPriceInput = screen.getByRole("textbox", {
-      name: /monthly discounted price/i,
-    });
-
-    fireEvent.change(discountPercentageInput, {
-      target: { value: "15" },
-    });
-
-    expect(discountPercentageInput).toHaveValue("15");
-    expect(discountedPriceInput).toHaveValue("15.3");
-
-    fireEvent.change(discountPercentageInput, {
-      target: { value: "" },
-    });
-
-    expect(discountPercentageInput).toHaveValue("");
-    expect(discountedPriceInput).toHaveValue("");
-
-    fireEvent.change(discountPercentageInput, {
-      target: { value: "25" },
-    });
-
-    expect(discountPercentageInput).toHaveValue("25");
-    expect(discountedPriceInput).toHaveValue("13.5");
-  });
-
-  it("calculates the discount percentage from the entered discounted price", () => {
-    render(
-      <ControlledBillingDetailsFields initialBillingCycles={["monthly"]} />,
-    );
-
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /monthly discounted price/i }),
-      {
-        target: { value: "14.395" },
-      },
-    );
-
-    expect(
-      screen.getByRole("textbox", { name: /monthly discounted price/i }),
-    ).toHaveValue("14.4");
-    expect(
-      screen.getByRole("textbox", { name: /monthly discount percentage/i }),
-    ).toHaveValue("20");
   });
 });
